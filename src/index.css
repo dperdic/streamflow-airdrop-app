@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --spacing-18: 72px;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+/* layout styles */
+
+html,
+body {
+  @apply m-0 h-full bg-gray-100 font-sans antialiased;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  @apply flex min-h-full flex-col font-sans antialiased;
+}
+
+/* button styles */
+
+.btn {
+  @apply items-center border border-transparent font-medium whitespace-nowrap focus:outline-hidden disabled:opacity-75;
+}
+
+.btn-xs {
+  @apply rounded px-2.5 py-1.5 text-xs;
+}
+
+.btn-sm {
+  @apply rounded-md px-3 py-2.5 text-sm;
+}
+
+.btn-md {
+  @apply rounded-md px-4 py-2.5 text-base;
+}
+
+.btn-lg {
+  @apply rounded-lg px-4 py-2 text-base;
+}
+
+.btn-xl {
+  @apply rounded-lg px-6 py-3 text-base;
+}
+
+.btn-black {
+  @apply border border-transparent bg-black text-white shadow-sm hover:bg-gray-800 focus:ring-gray-500;
+}
+
+.btn-white {
+  @apply border-2 border-black bg-white text-gray-900 shadow-xs hover:bg-gray-50 focus:ring-blue-500;
+}
+
+.btn-blue {
+  @apply border border-transparent bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus:ring-blue-500;
+}
+
+.btn-blue-secondary {
+  @apply border border-transparent bg-blue-100 text-blue-700 shadow-sm hover:bg-blue-200 focus:ring-blue-500;
+}
+
+.btn-green {
+  @apply border border-transparent bg-green-600 text-white shadow-sm hover:bg-green-700 focus:ring-green-500;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
