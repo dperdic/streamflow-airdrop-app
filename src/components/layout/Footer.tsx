@@ -3,7 +3,7 @@ export default function Footer() {
     <footer className="flex h-18 w-full items-center bg-black px-8 text-white sm:px-16">
       <div className="flex h-full w-full grow py-4">
         <a
-          href="https://github.com/warp-code/cielab-color-picker"
+          href="https://github.com/vite-template"
           target="_blank"
           className="flex flex-row gap-2"
         >
