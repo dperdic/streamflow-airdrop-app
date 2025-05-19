@@ -16,6 +16,11 @@
     "reset": "rm -f yarn.lock && rm -rf node_modules && yarn install"
   },
   "dependencies": {
+    "@solana/wallet-adapter-base": "^0.9.26",
+    "@solana/wallet-adapter-react": "^0.15.38",
+    "@solana/wallet-adapter-react-ui": "^0.9.38",
+    "@solana/wallet-adapter-wallets": "^0.19.36",
+    "@solana/web3.js": "1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite-plugin-node-polyfills": "^0.23.0"
