@@ -23,6 +23,7 @@
     "@solana/web3.js": "1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-toastify": "^11.0.5",
     "vite-plugin-node-polyfills": "^0.23.0"
   },
   "devDependencies": {
