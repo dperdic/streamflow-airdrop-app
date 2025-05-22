@@ -1,7 +1,15 @@
+import BN from "bn.js";
+
 export type Airdrop = {
   distributor: string;
-  numRecipients: number;
-  amountInTokens: number;
+  recipients: {
+    claimed: BN;
+    total: BN;
+  };
+  tokens: {
+    claimed: BN;
+    total: BN;
+  };
   type: string;
 };
 
