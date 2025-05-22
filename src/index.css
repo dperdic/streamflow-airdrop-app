@@ -69,7 +69,7 @@ body {
 }
 
 .btn-white {
-  @apply border-2 border-black bg-white text-gray-900 shadow-xs hover:bg-gray-50 focus:ring-blue-500;
+  @apply border border-gray-300 bg-white text-gray-900 shadow-xs hover:bg-gray-50 focus:ring-blue-500;
 }
 
 .btn-blue {
