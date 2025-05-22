@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import tanstackQuery from "@tanstack/eslint-plugin-query";
 import prettierConfig from "eslint-config-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
@@ -21,6 +22,7 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      "@tanstack/query": tanstackQuery,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -41,6 +43,8 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {
