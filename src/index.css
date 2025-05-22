@@ -41,7 +41,7 @@ body {
 /* button styles */
 
 .btn {
-  @apply items-center border border-transparent font-medium whitespace-nowrap focus:outline-hidden disabled:opacity-75;
+  @apply cursor-pointer items-center border border-transparent font-medium whitespace-nowrap focus:outline-hidden disabled:cursor-default disabled:opacity-75;
 }
 
 .btn-xs {
