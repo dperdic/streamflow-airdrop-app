@@ -1,12 +1,23 @@
 import { Card } from "@components/ui/Card";
-import { Mint, unpackMint } from "@solana/spl-token";
+import {
+  DigitalAsset,
+  fetchDigitalAsset,
+} from "@metaplex-foundation/mpl-token-metadata";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
-import { MerkleDistributor } from "@streamflow/distributor/solana";
-import { distributorClient } from "@utils/constants";
-import { formatTokenAmount, isInstant } from "@utils/functions";
+import {
+  ClaimStatus,
+  isCompressedClaimStatus,
+  MerkleDistributor,
+} from "@streamflow/distributor/solana";
+import { distributorClient, umi } from "@utils/constants";
+import {
+  formatDate,
+  formatTokenAmount,
+  getAirdropType,
+  getNextClaimPeriod,
+} from "@utils/functions";
 import { ClaimantData } from "@utils/types";
-import { BN } from "bn.js";
+import BN from "bn.js";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -16,11 +27,15 @@ export default function AirdropDetails() {
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
 
-  const [claimantData, setClaimantData] = useState<ClaimantData | null>(null);
-  const [mintData, setMintData] = useState<Mint | null>(null);
   const [distributor, setDistributor] = useState<MerkleDistributor | null>(
     null
   );
+  const [asset, setAsset] = useState<DigitalAsset | null>(null);
+
+  const [claimantData, setClaimantData] = useState<ClaimantData | null>(null);
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
+  const [canClaim, setCanClaim] = useState(false);
+  const [nextClaimPeriod, setNextClaimPeriod] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -30,10 +45,48 @@ export default function AirdropDetails() {
     });
   }, [id]);
 
+  const getBlockchainClaims = useCallback(async () => {
+    if (!distributor || !publicKey || !id) return;
+
+    const [claim] = await distributorClient.getClaims([
+      {
+        id,
+        recipient: publicKey.toString(),
+      },
+    ]);
+
+    if (claim === null) {
+      setClaimStatus(null);
+      setCanClaim(true);
+    } else if (isCompressedClaimStatus(claim)) {
+      setCanClaim(false);
+    } else {
+      setClaimStatus(claim);
+
+      const nextPeriod = getNextClaimPeriod(
+        distributor.startTs,
+        distributor.endTs,
+        distributor.unlockPeriod,
+        claim.lastClaimTs
+      );
+
+      setNextClaimPeriod(nextPeriod);
+
+      const now = new Date();
+
+      if (nextPeriod && now >= nextPeriod) {
+        setCanClaim(true);
+      } else {
+        setCanClaim(false);
+      }
+    }
+  }, [distributor, publicKey, id]);
+
   const fetchClaimantData = useCallback(async () => {
     if (!id || !publicKey) return;
 
     try {
+      // for instant airdrops to get the total amount
       const response = await fetch(
         `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey.toString()}`
       );
@@ -56,19 +109,16 @@ export default function AirdropDetails() {
     if (!wallet || !publicKey || !id || !claimantData) return;
 
     try {
-      const claimRes = await distributorClient.claim(
-        {
-          id,
-          proof: claimantData.proof,
-          amountUnlocked: new BN(claimantData.amountUnlocked),
-          amountLocked: new BN(claimantData.amountLocked),
-        },
-        {
-          invoker: wallet.adapter as any,
-        }
-      );
+      const data = {
+        id,
+        proof: claimantData.proof,
+        amountUnlocked: new BN(claimantData.amountUnlocked),
+        amountLocked: new BN(claimantData.amountLocked),
+      };
 
-      console.log(claimRes);
+      const claimRes = await distributorClient.claim(data, {
+        invoker: wallet.adapter as any,
+      });
 
       toast.success(`Airdrop claimed successfully: ${claimRes.txId}`);
     } catch (_error) {
@@ -76,93 +126,91 @@ export default function AirdropDetails() {
     }
   }, [publicKey, id, wallet, claimantData]);
 
-  const fetchBatchMintInfo = useCallback(async () => {
+  const fetchMintInfo = useCallback(async () => {
     if (!connection || !distributor) return;
 
-    const mintAccountInfo = await connection.getAccountInfo(
-      new PublicKey(distributor.mint)
-    );
+    try {
+      const asset = await fetchDigitalAsset(umi, distributor.mint as any);
 
-    if (!mintAccountInfo) return;
+      setAsset(asset);
+    } catch (_error) {
+      // no metadata, can't fetch price but get the mint info
+      const mintInfo = await connection.getAccountInfo(distributor.mint);
 
-    const mintData = unpackMint(distributor.mint, mintAccountInfo);
-
-    setMintData(mintData);
+      console.log("mintInfo", mintInfo);
+    }
   }, [connection, distributor]);
-
-  // jup fetch price data, replace with pyth or switchboard
-  const _fetchPriceData = useCallback(async () => {
-    const priceResponse = await fetch(
-      "https://lite-api.jup.ag/price/v2?ids=JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN,So11111111111111111111111111111111111111112,4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU,Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
-    );
-
-    const priceData = await priceResponse.json();
-
-    console.log(priceData);
-  }, []);
 
   useEffect(() => {
     fetchClaimantData();
-    fetchBatchMintInfo();
-  }, [fetchClaimantData, fetchBatchMintInfo]);
-
-  console.log(claimantData);
+    fetchMintInfo();
+    getBlockchainClaims();
+  }, [fetchClaimantData, fetchMintInfo, getBlockchainClaims]);
 
   if (!distributor) return <div>Loading...</div>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
         <h2 className="text-lg break-all">{id}</h2>
       </div>
 
+      <div className="flex flex-col justify-between gap-4 md:flex-row">
+        <Card
+          title="Airdrop type"
+          value={getAirdropType(distributor.startTs, distributor.endTs)}
+        />
+        <Card title="Recipients" value={distributor.maxNumNodes.toString()} />
+        <Card
+          title="Recipients Claimed/Total"
+          value={`${distributor.numNodesClaimed.toString()} / ${distributor.maxNumNodes.toString()}`}
+        />
+        <Card
+          title="Amount claimed/Total"
+          value={`${formatTokenAmount(
+            distributor.totalAmountClaimed,
+            asset?.mint.decimals ?? 9
+          )} / ${formatTokenAmount(
+            distributor.maxTotalClaim,
+            asset?.mint.decimals ?? 9
+          )}`}
+        />
+      </div>
+
       {publicKey ? (
         <>
-          {claimantData ? (
-            <button
-              className="btn btn-md btn-black"
-              onClick={() => claimAirdrop()}
-            >
-              Claim Airdrop
-            </button>
-          ) : (
-            <p className="text-red-500">Not eligible for airdrop</p>
-          )}
+          <div className="flex flex-col justify-between gap-4 md:flex-row">
+            <Card title="Total" value={"0.1"} footer="$12.3" />
+            <Card title="Unlocked" value={"0.01269"} footer="$1.1561" />
+            <Card title="Claimed" value={"0.01269"} footer="$1.1561" />
+            <Card title="Locked" value={"0.08731"} footer="$10.74" />
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {canClaim ? (
+              <button
+                className="btn btn-md btn-black"
+                onClick={() => claimAirdrop()}
+              >
+                Claim Airdrop
+              </button>
+            ) : claimantData ? (
+              <p className="text-center text-xl font-medium">
+                Claiming is available {formatDate(nextClaimPeriod)}, come back
+                later.
+              </p>
+            ) : (
+              <p className="text-center text-xl font-medium">
+                Not eligible for airdrop
+              </p>
+            )}
+          </div>
         </>
       ) : (
         <div className="flex flex-col gap-12">
-          <div className="flex flex-col justify-between gap-4 md:flex-row">
-            <Card
-              title="Airdrop type"
-              value={
-                isInstant(distributor.startTs, distributor.endTs)
-                  ? "Instant"
-                  : "Timed"
-              }
-            />
-            <Card
-              title="Recipients"
-              value={distributor.maxNumNodes.toString()}
-            />
-            <Card
-              title="Recipients Claimed/Total"
-              value={`${distributor.numNodesClaimed.toString()} / ${distributor.maxNumNodes.toString()}`}
-            />
-            <Card
-              title="Amount claimed/Total"
-              value={`${formatTokenAmount(
-                distributor.totalAmountClaimed,
-                mintData?.decimals ?? 9
-              )} / ${formatTokenAmount(
-                distributor.maxTotalClaim,
-                mintData?.decimals ?? 9
-              )}`}
-            />
-          </div>
-
           <p className="text-center text-xl font-medium">
-            Connect your wallet to claim this airdrop.
+            Connect your wallet to check your eligibility for this airdrop.
           </p>
         </div>
       )}
