@@ -34,6 +34,7 @@ export default function AirdropDetails() {
 
   const [claimantData, setClaimantData] = useState<ClaimantData | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
+
   const [canClaim, setCanClaim] = useState(false);
   const [nextClaimPeriod, setNextClaimPeriod] = useState<Date | null>(null);
 
@@ -154,6 +155,9 @@ export default function AirdropDetails() {
       <div>
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
         <h2 className="text-lg break-all">Distributor: {id}</h2>
+        <h2 className="text-lg break-all">
+          Token: {asset?.metadata.name} ({asset?.metadata.symbol})
+        </h2>
         <h2 className="text-lg break-all">
           Mint: {distributor.mint.toString()}
         </h2>
