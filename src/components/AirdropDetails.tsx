@@ -4,7 +4,6 @@ import { unpackMint } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { SendTransactionError } from "@solana/web3.js";
 import {
-  ClaimStatus,
   isCompressedClaimStatus,
   MerkleDistributor,
 } from "@streamflow/distributor/solana";
@@ -15,7 +14,7 @@ import {
   getAirdropType,
   getNextClaimPeriod,
 } from "@utils/functions";
-import { ClaimantData, MintInfo } from "@utils/types";
+import { ClaimantData, ClaimData, MintInfo } from "@utils/types";
 import BN from "bn.js";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -30,13 +29,9 @@ export default function AirdropDetails() {
     null
   );
   const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
+  const [claimData, setClaimData] = useState<ClaimData | null>(null);
 
-  const [claimantData, setClaimantData] = useState<ClaimantData | null>(null);
-  const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
-
-  const [canClaim, setCanClaim] = useState(false);
-  const [nextClaimPeriod, setNextClaimPeriod] = useState<Date | null>(null);
-
+  // done
   const fetchDistributor = useCallback(async () => {
     if (!id) return;
     console.log("called");
@@ -48,82 +43,187 @@ export default function AirdropDetails() {
     }
   }, [id]);
 
-  const getBlockchainClaims = useCallback(async () => {
-    if (!distributor || !publicKey || !id) return;
+  // const getBlockchainClaims = useCallback(async () => {
+  //   if (!distributor || !publicKey || !id) return;
 
-    const [claim] = await distributorClient.getClaims([
-      {
-        id,
-        recipient: publicKey.toString(),
-      },
-    ]);
+  //   const [claim] = await distributorClient.getClaims([
+  //     {
+  //       id,
+  //       recipient: publicKey.toString(),
+  //     },
+  //   ]);
 
-    console.log("claim", claim);
+  //   console.log("claim", claim);
 
-    if (claim === null) {
-      setClaimStatus(null);
-      setCanClaim(true);
-    } else if (isCompressedClaimStatus(claim)) {
-      setCanClaim(false);
-    } else {
-      const claimLog = {
-        ...claim,
-        lockedAmount: claim.lockedAmount.toString(10),
-        lockedAmountWithdrawn: claim.lockedAmountWithdrawn.toString(10),
-        unlockedAmount: claim.unlockedAmount.toString(10),
-        lastClaimTs: claim.lastClaimTs.toString(10),
-        lastAmountPerUnlock: claim.lastAmountPerUnlock.toString(10),
-        closedTs: claim.closedTs.toString(10),
-      };
+  //   if (claim === null) {
+  //     setClaimStatus(null);
+  //     setCanClaim(true);
+  //   } else if (isCompressedClaimStatus(claim)) {
+  //     setCanClaim(false);
+  //   } else {
+  //     const claimLog = {
+  //       ...claim,
+  //       lockedAmount: claim.lockedAmount.toString(10),
+  //       lockedAmountWithdrawn: claim.lockedAmountWithdrawn.toString(10),
+  //       unlockedAmount: claim.unlockedAmount.toString(10),
+  //       lastClaimTs: claim.lastClaimTs.toString(10),
+  //       lastAmountPerUnlock: claim.lastAmountPerUnlock.toString(10),
+  //       closedTs: claim.closedTs.toString(10),
+  //     };
 
-      console.log("claimLog", claimLog);
+  //     console.log("claimLog", claimLog);
 
-      setClaimStatus(claim);
+  //     setClaimStatus(claim);
 
-      const nextPeriod = getNextClaimPeriod(
-        distributor.startTs,
-        distributor.endTs,
-        distributor.unlockPeriod,
-        claim.lastClaimTs
-      );
+  //     const nextPeriod = getNextClaimPeriod(
+  //       distributor.startTs,
+  //       distributor.endTs,
+  //       distributor.unlockPeriod,
+  //       claim.lastClaimTs
+  //     );
 
-      setNextClaimPeriod(nextPeriod);
+  //     setNextClaimPeriod(nextPeriod);
 
-      const now = new Date();
+  //     const now = new Date();
 
-      if (nextPeriod && now >= nextPeriod) {
-        setCanClaim(true);
-      } else {
-        setCanClaim(false);
-      }
-    }
-  }, [distributor, publicKey, id]);
+  //     if (nextPeriod && now >= nextPeriod) {
+  //       setCanClaim(true);
+  //     } else {
+  //       setCanClaim(false);
+  //     }
+  //   }
+  // }, [distributor, publicKey, id]);
 
-  const fetchClaimantData = useCallback(async () => {
-    if (!id || !publicKey) return;
+  // const fetchClaimantData = useCallback(async () => {
+  //   if (!id || !publicKey) return;
+
+  //   try {
+  //     // for instant airdrops to get the total amount
+  //     const response = await fetch(
+  //       `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey.toString()}`
+  //     );
+
+  //     if (!response.ok) {
+  //       setClaimantData(null);
+  //       return;
+  //     }
+
+  //     const data: ClaimantData = await response.json();
+
+  //     console.log("claimantData", data);
+
+  //     setClaimantData(data);
+  //   } catch (_error) {
+  //     toast.error("An error occurred while fetching claimant data");
+  //     setClaimantData(null);
+  //   }
+  // }, [id, publicKey]);
+
+  const fetchClaimData = useCallback(async () => {
+    if (!id || !publicKey || !distributor) return;
+
+    const claimData: ClaimData = {
+      proof: [],
+      amountUnlocked: new BN(0),
+      amountLocked: new BN(0),
+      canClaim: false,
+    };
+
+    const airdropType = getAirdropType(distributor.startTs, distributor.endTs);
 
     try {
-      // for instant airdrops to get the total amount
       const response = await fetch(
         `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey.toString()}`
       );
 
       if (!response.ok) {
-        setClaimantData(null);
+        setClaimData(null);
         return;
       }
 
       const data: ClaimantData = await response.json();
 
-      console.log("claimantData", data);
+      claimData.proof = data.proof;
 
-      setClaimantData(data);
-    } catch (_error) {
+      if (airdropType === "Instant") {
+        claimData.amountUnlocked = new BN(data.amountUnlocked);
+        claimData.amountLocked = new BN(data.amountLocked);
+        claimData.canClaim = true;
+      }
+    } catch (error) {
+      console.error(error);
       toast.error("An error occurred while fetching claimant data");
-      setClaimantData(null);
+      setClaimData(null);
     }
-  }, [id, publicKey]);
 
+    if (airdropType === "Instant") {
+      setClaimData(claimData);
+      return;
+    }
+
+    console.log("called 2");
+
+    try {
+      const [claim] = await distributorClient.getClaims([
+        {
+          id,
+          recipient: publicKey.toString(),
+        },
+      ]);
+
+      if (claim === null) {
+        claimData.canClaim = true;
+        setClaimData(claimData);
+        return;
+      } else if (isCompressedClaimStatus(claim)) {
+        claimData.canClaim = false;
+        setClaimData(claimData);
+        return;
+      } else {
+        const claimLog = {
+          ...claim,
+          lockedAmount: claim.lockedAmount.toString(10),
+          lockedAmountWithdrawn: claim.lockedAmountWithdrawn.toString(10),
+          unlockedAmount: claim.unlockedAmount.toString(10),
+          lastClaimTs: claim.lastClaimTs.toString(10),
+          lastAmountPerUnlock: claim.lastAmountPerUnlock.toString(10),
+          closedTs: claim.closedTs.toString(10),
+        };
+        console.log("claimLog", claimLog);
+
+        const nextPeriod = getNextClaimPeriod(
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod,
+          claim.lastClaimTs
+        );
+
+        const now = new Date();
+
+        claimData.amountUnlocked = claim.unlockedAmount; // TODO: calculate this based on unlock period
+        claimData.amountLocked = claim.lockedAmount; // TODO: calculate this based on unlock period
+        claimData.nextClaimPeriod = nextPeriod;
+        claimData.lastClaimTs = claim.lastClaimTs;
+        claimData.lastAmountPerUnlock = claim.lastAmountPerUnlock;
+        claimData.lockedAmountWithdrawn = claim.lockedAmountWithdrawn;
+        claimData.closedTs = claim.closedTs;
+
+        if (nextPeriod && now >= nextPeriod) {
+          claimData.canClaim = true;
+        } else {
+          claimData.canClaim = false;
+        }
+
+        setClaimData(claimData);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred while fetching claims");
+      setClaimData(null);
+    }
+  }, [id, publicKey, distributor]);
+
+  // done
   const fetchMintInfo = useCallback(async () => {
     if (!connection || !distributor) return;
 
@@ -151,15 +251,16 @@ export default function AirdropDetails() {
     }
   }, [connection, distributor]);
 
+  // done
   const claimAirdrop = useCallback(async () => {
-    if (!wallet || !publicKey || !id || !claimantData) return;
+    if (!wallet || !publicKey || !id || !claimData) return;
 
     try {
       const data = {
         id,
-        proof: claimantData.proof,
-        amountUnlocked: new BN(claimantData.amountUnlocked),
-        amountLocked: new BN(claimantData.amountLocked),
+        proof: claimData.proof,
+        amountUnlocked: new BN(claimData.amountUnlocked),
+        amountLocked: new BN(claimData.amountLocked),
       };
 
       const claimRes = await distributorClient.claim(data, {
@@ -172,30 +273,38 @@ export default function AirdropDetails() {
       toast.error("Airdrop claim failed");
     } finally {
       fetchDistributor();
-      fetchClaimantData();
-      getBlockchainClaims();
+      fetchClaimData();
+      // fetchClaimantData();
+      // getBlockchainClaims();
     }
-  }, [
-    publicKey,
-    id,
-    wallet,
-    claimantData,
-    fetchDistributor,
-    fetchClaimantData,
-    getBlockchainClaims,
-  ]);
+  }, [publicKey, id, wallet, claimData, fetchDistributor, fetchClaimData]);
 
   useEffect(() => {
     fetchDistributor();
   }, [fetchDistributor]);
 
   useEffect(() => {
-    fetchClaimantData();
     fetchMintInfo();
-    getBlockchainClaims();
-  }, [fetchClaimantData, fetchMintInfo, getBlockchainClaims]);
+    fetchClaimData();
+  }, [fetchMintInfo, fetchClaimData]);
 
-  if (!distributor) return <div>Loading...</div>;
+  if (!distributor)
+    return (
+      <div>
+        <p className="text-center text-xl font-medium">Loading...</p>
+      </div>
+    );
+
+  // console.log("claimData", {
+  //   ...claimData,
+  //   amountUnlocked: claimData?.amountUnlocked?.toString(),
+  //   amountLocked: claimData?.amountLocked?.toString(),
+  //   nextClaimPeriod: claimData?.nextClaimPeriod?.toISOString(),
+  //   lastClaimTs: claimData?.lastClaimTs?.toString(),
+  //   lastAmountPerUnlock: claimData?.lastAmountPerUnlock?.toString(),
+  //   lockedAmountWithdrawn: claimData?.lockedAmountWithdrawn?.toString(),
+  //   closedTs: claimData?.closedTs?.toString(),
+  // });
 
   return (
     <div className="flex flex-col gap-8">
@@ -230,13 +339,41 @@ export default function AirdropDetails() {
         />
       </div>
 
-      {publicKey ? (
+      {publicKey && claimData ? (
         <>
           <div className="flex flex-col justify-between gap-4 md:flex-row">
-            <Card title="Total" value={"0.1"} footer="$12.3" />
-            <Card title="Unlocked" value={"0.01269"} footer="$1.1561" />
-            <Card title="Claimed" value={"0.01269"} footer="$1.1561" />
-            <Card title="Locked" value={"0.08731"} footer="$10.74" />
+            <Card
+              title="Total"
+              value={formatTokenAmount(
+                claimData.amountUnlocked.add(claimData.amountLocked),
+                mintInfo?.decimals ?? 9
+              )}
+              footer="$12.3"
+            />
+            <Card
+              title="Unlocked"
+              value={formatTokenAmount(
+                claimData.amountUnlocked,
+                mintInfo?.decimals ?? 9
+              )}
+              footer="$1.1561"
+            />
+            <Card
+              title="Claimed"
+              value={formatTokenAmount(
+                claimData.lockedAmountWithdrawn ?? new BN(0), // TODO: add cliff amount to this, find a way to get the cliff amount
+                mintInfo?.decimals ?? 9
+              )}
+              footer="$1.1561"
+            />
+            <Card
+              title="Locked"
+              value={formatTokenAmount(
+                claimData.amountLocked,
+                mintInfo?.decimals ?? 9
+              )}
+              footer="$1.1561"
+            />
           </div>
 
           <>
@@ -248,7 +385,7 @@ export default function AirdropDetails() {
                 Claim Airdrop
               </button>
             </div>
-            {canClaim ? (
+            {claimData?.canClaim ? (
               <div className="flex justify-center">
                 <button
                   className="btn btn-md btn-black"
@@ -257,12 +394,12 @@ export default function AirdropDetails() {
                   Claim Airdrop
                 </button>
               </div>
-            ) : claimantData ? (
+            ) : claimData?.nextClaimPeriod ? (
               <>
-                {nextClaimPeriod ? (
+                {claimData.nextClaimPeriod ? (
                   <p className="text-center text-xl font-medium">
-                    Claiming is available {formatDate(nextClaimPeriod)}, come
-                    back later.
+                    Claiming is available{" "}
+                    {formatDate(claimData.nextClaimPeriod)}, come back later.
                   </p>
                 ) : (
                   <p className="text-center text-xl font-medium">

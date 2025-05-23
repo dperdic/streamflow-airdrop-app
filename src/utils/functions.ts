@@ -74,8 +74,13 @@ export function getNextClaimPeriod(
   startTs: BN,
   endTs: BN,
   unlockPeriod: BN,
-  lastClaimTs: BN
+  lastClaimTs: BN,
+  closedTs?: BN
 ): Date | null {
+  if (closedTs) {
+    return null;
+  }
+
   const now = new BN(Math.floor(Date.now() / 1000));
 
   if (now.lt(startTs)) {

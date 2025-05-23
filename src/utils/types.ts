@@ -29,3 +29,22 @@ export type MintInfo = {
   symbol?: string;
   decimals: number;
 };
+
+export type ClaimData = {
+  // api results
+  proof: number[][];
+
+  // api results or blockchain results
+  amountUnlocked: BN;
+  amountLocked: BN;
+
+  // blockchain results
+  lastClaimTs?: BN;
+  lastAmountPerUnlock?: BN;
+  lockedAmountWithdrawn?: BN;
+  closedTs?: BN;
+
+  nextClaimPeriod?: Date | null;
+
+  canClaim: boolean;
+};
