@@ -150,10 +150,13 @@ export default function AirdropDetails() {
   if (!distributor) return <div>Loading...</div>;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
-        <h2 className="text-lg break-all">{id}</h2>
+        <h2 className="text-lg break-all">Distributor: {id}</h2>
+        <h2 className="text-lg break-all">
+          Mint: {distributor.mint.toString()}
+        </h2>
       </div>
 
       <div className="flex flex-col justify-between gap-4 md:flex-row">
@@ -187,14 +190,16 @@ export default function AirdropDetails() {
             <Card title="Locked" value={"0.08731"} footer="$10.74" />
           </div>
 
-          <div className="flex flex-col gap-4">
+          <>
             {canClaim ? (
-              <button
-                className="btn btn-md btn-black"
-                onClick={() => claimAirdrop()}
-              >
-                Claim Airdrop
-              </button>
+              <div className="flex justify-center">
+                <button
+                  className="btn btn-md btn-black"
+                  onClick={() => claimAirdrop()}
+                >
+                  Claim Airdrop
+                </button>
+              </div>
             ) : claimantData ? (
               <p className="text-center text-xl font-medium">
                 Claiming is available {formatDate(nextClaimPeriod)}, come back
@@ -205,14 +210,12 @@ export default function AirdropDetails() {
                 Not eligible for airdrop
               </p>
             )}
-          </div>
+          </>
         </>
       ) : (
-        <div className="flex flex-col gap-12">
-          <p className="text-center text-xl font-medium">
-            Connect your wallet to check your eligibility for this airdrop.
-          </p>
-        </div>
+        <p className="text-center text-xl font-medium">
+          Connect your wallet to check your eligibility for this airdrop.
+        </p>
       )}
     </div>
   );
