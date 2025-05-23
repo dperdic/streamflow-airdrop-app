@@ -4,6 +4,7 @@ import {
   fetchDigitalAsset,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { SendTransactionError } from "@solana/web3.js";
 import {
   ClaimStatus,
   isCompressedClaimStatus,
@@ -42,6 +43,7 @@ export default function AirdropDetails() {
     if (!id) return;
 
     distributorClient.getDistributors({ ids: [id] }).then(res => {
+      console.log("distributor", res[0]);
       setDistributor(res[0]);
     });
   }, [id]);
@@ -56,12 +58,26 @@ export default function AirdropDetails() {
       },
     ]);
 
+    console.log("claim", claim);
+
     if (claim === null) {
       setClaimStatus(null);
       setCanClaim(true);
     } else if (isCompressedClaimStatus(claim)) {
       setCanClaim(false);
     } else {
+      const claimLog = {
+        ...claim,
+        lockedAmount: claim.lockedAmount.toString(10),
+        lockedAmountWithdrawn: claim.lockedAmountWithdrawn.toString(10),
+        unlockedAmount: claim.unlockedAmount.toString(10),
+        lastClaimTs: claim.lastClaimTs.toString(10),
+        lastAmountPerUnlock: claim.lastAmountPerUnlock.toString(10),
+        closedTs: claim.closedTs.toString(10),
+      };
+
+      console.log("claimLog", claimLog);
+
       setClaimStatus(claim);
 
       const nextPeriod = getNextClaimPeriod(
@@ -99,6 +115,8 @@ export default function AirdropDetails() {
 
       const data: ClaimantData = await response.json();
 
+      console.log("claimantData", data);
+
       setClaimantData(data);
     } catch (_error) {
       toast.error("An error occurred while fetching claimant data");
@@ -122,7 +140,8 @@ export default function AirdropDetails() {
       });
 
       toast.success(`Airdrop claimed successfully: ${claimRes.txId}`);
-    } catch (_error) {
+    } catch (error) {
+      console.error((error as SendTransactionError).message);
       toast.error("Airdrop claim failed");
     }
   }, [publicKey, id, wallet, claimantData]);
@@ -195,6 +214,14 @@ export default function AirdropDetails() {
           </div>
 
           <>
+            <div className="flex justify-center">
+              <button
+                className="btn btn-md btn-black"
+                onClick={() => claimAirdrop()}
+              >
+                Claim Airdrop
+              </button>
+            </div>
             {canClaim ? (
               <div className="flex justify-center">
                 <button
@@ -205,10 +232,18 @@ export default function AirdropDetails() {
                 </button>
               </div>
             ) : claimantData ? (
-              <p className="text-center text-xl font-medium">
-                Claiming is available {formatDate(nextClaimPeriod)}, come back
-                later.
-              </p>
+              <>
+                {nextClaimPeriod ? (
+                  <p className="text-center text-xl font-medium">
+                    Claiming is available {formatDate(nextClaimPeriod)}, come
+                    back later.
+                  </p>
+                ) : (
+                  <p className="text-center text-xl font-medium">
+                    Claim period is over.
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-center text-xl font-medium">
                 Not eligible for airdrop
