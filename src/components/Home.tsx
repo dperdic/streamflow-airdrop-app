@@ -1,16 +1,18 @@
 import { distributorClient } from "@/utils/constants";
 import { IProgramAccount } from "@streamflow/common/solana";
 import { MerkleDistributor } from "@streamflow/distributor/solana";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
-import { formatTokenAmount, isInstant, maskPublicKey } from "@utils/functions";
+import {
+  formatTokenAmount,
+  getAirdropType,
+  maskPublicKey,
+} from "@utils/functions";
 import { Airdrop } from "@utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -21,13 +23,11 @@ export default function Home() {
   const [distributors, setDistributors] = useState<
     IProgramAccount<MerkleDistributor>[]
   >([]);
-
+  const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
-
-  const [search, setSearch] = useState("");
 
   // Fetch all distributors
   useEffect(() => {
@@ -35,62 +35,10 @@ export default function Home() {
       const distributors = await distributorClient.searchDistributors({});
       setDistributors(distributors);
     };
-
     getDistributorData();
   }, []);
 
-  const fetchData = async (options: {
-    pageIndex: number;
-    pageSize: number;
-  }) => {
-    if (distributors.length === 0) {
-      return {
-        rows: [],
-        pageCount: 0,
-        rowCount: 0,
-      };
-    }
-
-    const data = distributors
-      .sort((a, b) => (a.account.version.lt(b.account.version) ? 1 : -1))
-      .map(x => {
-        return {
-          distributor: x.publicKey.toString(),
-          recipients: {
-            claimed: x.account.numNodesClaimed,
-            total: x.account.maxNumNodes,
-          },
-          tokens: {
-            claimed: x.account.totalAmountClaimed,
-            total: x.account.maxTotalClaim,
-          },
-          type: isInstant(x.account.startTs, x.account.endTs)
-            ? "Instant"
-            : "Timed",
-        } as unknown as Airdrop;
-      });
-
-    return {
-      rows: data.slice(
-        options.pageIndex * options.pageSize,
-        (options.pageIndex + 1) * options.pageSize
-      ),
-      pageCount: Math.ceil(data.length / options.pageSize),
-      rowCount: data.length,
-    };
-  };
-
-  const dataQuery = useQuery({
-    queryKey: [
-      "distributors",
-      pagination.pageIndex,
-      pagination.pageSize,
-      distributors,
-    ],
-    queryFn: async () => fetchData(pagination),
-    placeholderData: keepPreviousData,
-  });
-
+  // Filter and sort
   const filteredData = useMemo(() => {
     return distributors
       .filter(d =>
@@ -99,6 +47,7 @@ export default function Home() {
       .sort((a, b) => (a.account.version.lt(b.account.version) ? 1 : -1));
   }, [distributors, search]);
 
+  // Map to table data
   const mappedData = useMemo(() => {
     return filteredData.map(x => ({
       distributor: x.publicKey.toString(),
@@ -110,7 +59,7 @@ export default function Home() {
         claimed: x.account.totalAmountClaimed,
         total: x.account.maxTotalClaim,
       },
-      type: isInstant(x.account.startTs, x.account.endTs) ? "Instant" : "Timed",
+      type: getAirdropType(x.account.startTs, x.account.endTs),
     }));
   }, [filteredData]);
 
@@ -124,9 +73,7 @@ export default function Home() {
       {
         header: "Distributor",
         accessorKey: "distributor",
-        cell: ({ row }) => {
-          return maskPublicKey(row.original.distributor);
-        },
+        cell: ({ row }) => maskPublicKey(row.original.distributor),
       },
       {
         header: "Recipients (claimed/total)",
@@ -134,7 +81,6 @@ export default function Home() {
         cell: ({ row }) => {
           const claimed = row.original.recipients.claimed.toString();
           const total = row.original.recipients.total.toString();
-
           return `${claimed} / ${total}`;
         },
       },
@@ -144,16 +90,13 @@ export default function Home() {
         cell: ({ row }) => {
           const claimed = formatTokenAmount(row.original.tokens.claimed, 9);
           const total = formatTokenAmount(row.original.tokens.total, 9);
-
           return `${claimed} / ${total}`;
         },
       },
       {
         header: "Type",
         accessorKey: "type",
-        cell: ({ row }) => {
-          return row.original.type;
-        },
+        cell: ({ row }) => row.original.type,
       },
     ],
     []
@@ -163,12 +106,9 @@ export default function Home() {
     data: paginatedRows,
     columns,
     rowCount: mappedData.length,
-    state: {
-      pagination,
-    },
+    state: { pagination },
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     manualPagination: true,
     debugTable: true,
   });
@@ -305,7 +245,6 @@ export default function Home() {
                   </option>
                 ))}
               </select>
-              {dataQuery.isFetching ? "Loading..." : null}
             </div>
           </div>
         </div>
