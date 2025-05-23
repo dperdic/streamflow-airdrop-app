@@ -2,9 +2,10 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { getClaimantStatusPda } from "@streamflow/distributor/solana";
 import { distributorClient } from "@utils/constants";
 import BN from "bn.js";
+import { format } from "date-fns";
 
-export function isInstant(startTs: BN, endTs: BN) {
-  return startTs.eq(endTs);
+export function getAirdropType(startTs: BN, endTs: BN) {
+  return startTs.eq(endTs) ? "Instant" : "Vested";
 }
 
 export function formatTokenAmount(amount: BN, decimals: number): string {
@@ -67,4 +68,53 @@ export async function getAmountClaimed(
   }
 
   return totalReceived;
+}
+
+export function getNextClaimPeriod(
+  startTs: BN,
+  endTs: BN,
+  unlockPeriod: BN,
+  lastClaimTs: BN
+): Date | null {
+  const now = new BN(Math.floor(Date.now() / 1000));
+
+  if (now.lt(startTs)) {
+    return new Date(startTs.mul(new BN(1000)).toNumber());
+  }
+
+  if (now.gt(endTs)) {
+    return null;
+  }
+
+  // Calculate the next period after lastClaimTs
+  let nextPeriod = startTs;
+
+  if (lastClaimTs.gte(startTs)) {
+    const periodsSinceStart = lastClaimTs
+      .sub(startTs)
+      .div(unlockPeriod)
+      .addn(1);
+    nextPeriod = startTs.add(unlockPeriod.mul(periodsSinceStart));
+  }
+
+  if (nextPeriod.gt(endTs)) {
+    return null;
+  }
+
+  return new Date(nextPeriod.mul(new BN(1000)).toNumber());
+}
+
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) {
+    return "";
+  }
+
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+
+    return format(dateObj, "dd.MM.yyyy. HH:mm");
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "Invalid date";
+  }
 }
