@@ -36,7 +36,9 @@ export async function getAmountClaimed(
     limit: 20,
   });
 
-  let totalReceived = 0;
+  if (signatures.length === 0) return new BN(0);
+
+  let totalReceived = new BN(0);
 
   for (const { signature } of signatures) {
     const tx = await connection.getParsedTransaction(signature, {
@@ -54,15 +56,15 @@ export async function getAmountClaimed(
 
     if (!recipient) continue;
 
-    const recipientPreAmount = parseFloat(
+    const recipientPreAmount = new BN(
       preTokenBalances?.find(b => b.accountIndex === recipient.accountIndex)
         ?.uiTokenAmount.amount ?? "0"
     );
-    const recipientPostAmount = parseFloat(recipient.uiTokenAmount.amount);
+    const recipientPostAmount = new BN(recipient.uiTokenAmount.amount);
 
-    const received = recipientPostAmount - recipientPreAmount;
+    const received = recipientPostAmount.sub(recipientPreAmount);
 
-    totalReceived += received;
+    totalReceived = totalReceived.add(received);
   }
 
   return totalReceived;
