@@ -1,3 +1,6 @@
+import { Connection, PublicKey } from "@solana/web3.js";
+import { getClaimantStatusPda } from "@streamflow/distributor/solana";
+import { distributorClient } from "@utils/constants";
 import BN from "bn.js";
 
 export function isInstant(startTs: BN, endTs: BN) {
@@ -17,4 +20,50 @@ export function formatTokenAmount(amount: BN, decimals: number): string {
 
 export function maskPublicKey(publicKey: string) {
   return publicKey.slice(0, 5) + "..." + publicKey.slice(-5);
+}
+
+// Returns the amount of tokens claimed by a claimant so far
+export async function getAmountClaimed(
+  distributor: PublicKey,
+  claimant: PublicKey,
+  connection: Connection
+) {
+  const programId = distributorClient.getDistributorProgramId();
+
+  const distributorPDA = getClaimantStatusPda(programId, distributor, claimant);
+
+  const signatures = await connection.getSignaturesForAddress(distributorPDA, {
+    limit: 20,
+  });
+
+  let totalReceived = 0;
+
+  for (const { signature } of signatures) {
+    const tx = await connection.getParsedTransaction(signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    });
+
+    if (!tx || !tx.meta) continue;
+
+    const { preTokenBalances, postTokenBalances } = tx.meta;
+
+    const recipient = postTokenBalances?.find(
+      x => x.owner === claimant.toString() && x.accountIndex !== undefined
+    );
+
+    if (!recipient) continue;
+
+    const recipientPreAmount = parseFloat(
+      preTokenBalances?.find(b => b.accountIndex === recipient.accountIndex)
+        ?.uiTokenAmount.amount ?? "0"
+    );
+    const recipientPostAmount = parseFloat(recipient.uiTokenAmount.amount);
+
+    const received = recipientPostAmount - recipientPreAmount;
+
+    totalReceived += received;
+  }
+
+  return totalReceived;
 }
