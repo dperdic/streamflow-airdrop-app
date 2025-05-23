@@ -1,8 +1,6 @@
 import { Card } from "@components/ui/Card";
-import {
-  DigitalAsset,
-  fetchDigitalAsset,
-} from "@metaplex-foundation/mpl-token-metadata";
+import { fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
+import { unpackMint } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { SendTransactionError } from "@solana/web3.js";
 import {
@@ -17,7 +15,7 @@ import {
   getAirdropType,
   getNextClaimPeriod,
 } from "@utils/functions";
-import { ClaimantData } from "@utils/types";
+import { ClaimantData, MintInfo } from "@utils/types";
 import BN from "bn.js";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -31,7 +29,7 @@ export default function AirdropDetails() {
   const [distributor, setDistributor] = useState<MerkleDistributor | null>(
     null
   );
-  const [asset, setAsset] = useState<DigitalAsset | null>(null);
+  const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
 
   const [claimantData, setClaimantData] = useState<ClaimantData | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
@@ -39,13 +37,15 @@ export default function AirdropDetails() {
   const [canClaim, setCanClaim] = useState(false);
   const [nextClaimPeriod, setNextClaimPeriod] = useState<Date | null>(null);
 
-  useEffect(() => {
+  const fetchDistributor = useCallback(async () => {
     if (!id) return;
+    console.log("called");
 
-    distributorClient.getDistributors({ ids: [id] }).then(res => {
-      console.log("distributor", res[0]);
-      setDistributor(res[0]);
-    });
+    const [res] = await distributorClient.getDistributors({ ids: [id] });
+
+    if (res) {
+      setDistributor(res);
+    }
   }, [id]);
 
   const getBlockchainClaims = useCallback(async () => {
@@ -124,6 +124,33 @@ export default function AirdropDetails() {
     }
   }, [id, publicKey]);
 
+  const fetchMintInfo = useCallback(async () => {
+    if (!connection || !distributor) return;
+
+    try {
+      const asset = await fetchDigitalAsset(umi, distributor.mint as any);
+
+      setMintInfo({
+        mint: asset.mint.publicKey.toString(),
+        name: asset.metadata.name,
+        symbol: asset.metadata.symbol,
+        decimals: asset.mint.decimals,
+      });
+    } catch (_error) {
+      // no metadata, can't fetch price but get the mint info
+      const mintAccountInfo = await connection.getAccountInfo(distributor.mint);
+
+      if (mintAccountInfo) {
+        const data = unpackMint(distributor.mint, mintAccountInfo);
+
+        setMintInfo({
+          mint: data.address.toString(),
+          decimals: data.decimals,
+        });
+      }
+    }
+  }, [connection, distributor]);
+
   const claimAirdrop = useCallback(async () => {
     if (!wallet || !publicKey || !id || !claimantData) return;
 
@@ -143,23 +170,24 @@ export default function AirdropDetails() {
     } catch (error) {
       console.error((error as SendTransactionError).message);
       toast.error("Airdrop claim failed");
+    } finally {
+      fetchDistributor();
+      fetchClaimantData();
+      getBlockchainClaims();
     }
-  }, [publicKey, id, wallet, claimantData]);
+  }, [
+    publicKey,
+    id,
+    wallet,
+    claimantData,
+    fetchDistributor,
+    fetchClaimantData,
+    getBlockchainClaims,
+  ]);
 
-  const fetchMintInfo = useCallback(async () => {
-    if (!connection || !distributor) return;
-
-    try {
-      const asset = await fetchDigitalAsset(umi, distributor.mint as any);
-
-      setAsset(asset);
-    } catch (_error) {
-      // no metadata, can't fetch price but get the mint info
-      const mintInfo = await connection.getAccountInfo(distributor.mint);
-
-      console.log("mintInfo", mintInfo);
-    }
-  }, [connection, distributor]);
+  useEffect(() => {
+    fetchDistributor();
+  }, [fetchDistributor]);
 
   useEffect(() => {
     fetchClaimantData();
@@ -174,11 +202,9 @@ export default function AirdropDetails() {
       <div>
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
         <h2 className="text-lg break-all">Distributor: {id}</h2>
+        <h2 className="text-lg break-all">Mint: {mintInfo?.mint.toString()}</h2>
         <h2 className="text-lg break-all">
-          Token: {asset?.metadata.name} ({asset?.metadata.symbol})
-        </h2>
-        <h2 className="text-lg break-all">
-          Mint: {distributor.mint.toString()}
+          Token: {mintInfo?.name} ({mintInfo?.symbol})
         </h2>
       </div>
 
@@ -196,10 +222,10 @@ export default function AirdropDetails() {
           title="Amount claimed/Total"
           value={`${formatTokenAmount(
             distributor.totalAmountClaimed,
-            asset?.mint.decimals ?? 9
+            mintInfo?.decimals ?? 9
           )} / ${formatTokenAmount(
             distributor.maxTotalClaim,
-            asset?.mint.decimals ?? 9
+            mintInfo?.decimals ?? 9
           )}`}
         />
       </div>

@@ -22,3 +22,10 @@ export type ClaimantData = {
   amountClaimed: string;
   proof: number[][];
 };
+
+export type MintInfo = {
+  mint: string;
+  name?: string;
+  symbol?: string;
+  decimals: number;
+};
