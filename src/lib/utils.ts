@@ -172,10 +172,10 @@ export function buildClaimDataForVestedClaim(
   };
 }
 
-export async function getMintInfo(
+export async function fetchMintInfo(
   publicKeys: PublicKey[],
   connection: Connection
-) {
+): Promise<({ publicKey: PublicKey; decimals: number } | null)[]> {
   const accounts = await connection.getMultipleAccountsInfo(publicKeys);
 
   const mintInfo = accounts
