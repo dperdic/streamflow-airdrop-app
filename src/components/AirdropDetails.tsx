@@ -271,7 +271,7 @@ export default function AirdropDetails() {
               {claimData.nextClaimPeriod &&
                 new Date(claimData.nextClaimPeriod) > new Date() && (
                   <p className="text-center text-xl font-medium">
-                    Claiming is available{" "}
+                    Next claim is available{" "}
                     {formatDate(claimData.nextClaimPeriod)}, come back later.
                   </p>
                 )}
@@ -285,19 +285,19 @@ export default function AirdropDetails() {
 
               {distributor.clawedBack && (
                 <p className="text-center text-xl font-medium">
-                  The airdrop has been clawed back.
+                  The airdrop has been clawed back - you can't claim anymore.
                 </p>
               )}
             </>
           ) : (
             <p className="text-center text-xl font-medium">
-              Not eligible for airdrop
+              YOu are not eligible for this airdrop.
             </p>
           )}
         </>
       ) : (
         <p className="text-center text-xl font-medium">
-          Connect your wallet to check your eligibility for this airdrop.
+          Connect your wallet to check you are eligible for this airdrop.
         </p>
       )}
     </div>
