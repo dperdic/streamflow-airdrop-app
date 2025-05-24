@@ -19,7 +19,6 @@ export default function Header() {
       publicKey,
       updatedAccountInfo => {
         setBalance(updatedAccountInfo.lamports / LAMPORTS_PER_SOL);
-        console.log("account changed");
       },
       { commitment: "confirmed" }
     );
