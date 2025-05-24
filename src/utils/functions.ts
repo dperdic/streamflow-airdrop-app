@@ -3,7 +3,7 @@ import { ClaimantData, ClaimData } from "@utils/types";
 import BN from "bn.js";
 import { format } from "date-fns";
 
-export function getAirdropType(startTs: BN, endTs: BN) {
+export function getAirdropType(startTs: BN, endTs: BN): "Instant" | "Vested" {
   return startTs.eq(endTs) ? "Instant" : "Vested";
 }
 
@@ -18,7 +18,7 @@ export function formatTokenAmount(amount: BN, decimals: number): string {
   return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
 }
 
-export function maskPublicKey(publicKey: string) {
+export function maskPublicKey(publicKey: string): string {
   return publicKey.slice(0, 5) + "..." + publicKey.slice(-5);
 }
 
@@ -35,120 +35,6 @@ export function formatDate(date: Date | string | null | undefined): string {
     console.error("Error formatting date: ", error);
     return "";
   }
-}
-
-export function getNextClaimPeriod(
-  startTs: BN,
-  endTs: BN,
-  unlockPeriod: BN,
-  lastClaimTs: BN,
-  closedTs?: BN
-): Date | null {
-  if (closedTs) {
-    return null;
-  }
-
-  const currentTime = new BN(Math.floor(Date.now() / 1000));
-
-  if (currentTime.lt(startTs)) {
-    return new Date(startTs.mul(new BN(1000)).toNumber());
-  }
-
-  if (currentTime.gt(endTs)) {
-    return null;
-  }
-
-  // Calculate the next period after lastClaimTs
-  let nextPeriod = startTs;
-
-  if (lastClaimTs.gte(startTs)) {
-    const periodsSinceStart = lastClaimTs
-      .sub(startTs)
-      .div(unlockPeriod)
-      .addn(1);
-    nextPeriod = startTs.add(unlockPeriod.mul(periodsSinceStart));
-  }
-
-  if (nextPeriod.gt(endTs)) {
-    return null;
-  }
-
-  return new Date(nextPeriod.mul(new BN(1000)).toNumber());
-}
-
-export function getAmountUnlockedPerPeriod(
-  totalAmount: BN,
-  initialUnlocked: BN,
-  startTime: BN,
-  endTime: BN,
-  unlockPeriod: BN
-) {
-  const duration = endTime.sub(startTime);
-  const periods = duration.div(unlockPeriod);
-
-  // never happens, but just in case
-  if (periods.isZero()) {
-    return initialUnlocked;
-  }
-
-  const toVest = totalAmount.sub(initialUnlocked);
-
-  // Rounded up unlock per period: ceil(toVest / periods)
-  const unlockPerPeriod = toVest.add(periods.subn(1)).div(periods);
-
-  return unlockPerPeriod;
-}
-
-export function getTotalLockedAndUnlockedAmount(
-  totalAmount: BN,
-  initialUnlocked: BN,
-  startTime: BN,
-  endTime: BN,
-  unlockPeriod: BN
-) {
-  const currentTime = new BN(Math.floor(Date.now() / 1000));
-
-  const toVest = totalAmount.sub(initialUnlocked);
-
-  // Before vesting starts
-  if (currentTime.lt(startTime)) {
-    return {
-      unlocked: initialUnlocked,
-      locked: toVest,
-    };
-  }
-
-  // After vesting ends
-  if (currentTime.gte(endTime)) {
-    return {
-      unlocked: totalAmount,
-      locked: new BN(0),
-    };
-  }
-
-  const totalDuration = endTime.sub(startTime);
-  const totalPeriods = totalDuration.div(unlockPeriod);
-  if (totalPeriods.isZero()) {
-    throw new Error("Unlock period longer than total duration");
-  }
-
-  // Rounded up unlock per period
-  const unlockPerPeriod = toVest.add(totalPeriods.subn(1)).div(totalPeriods);
-
-  const elapsedTime = currentTime.sub(startTime);
-  const elapsedPeriods = elapsedTime.div(unlockPeriod);
-
-  // Amount unlocked during vesting so far
-  let vested = unlockPerPeriod.mul(elapsedPeriods);
-  if (vested.gt(toVest)) vested = toVest;
-
-  const unlocked = initialUnlocked.add(vested);
-  const locked = totalAmount.sub(unlocked);
-
-  return {
-    unlocked,
-    locked,
-  };
 }
 
 // Helper function to fetch claimant data from API
@@ -169,7 +55,7 @@ export async function fetchClaimantDataFromAPI(
 }
 
 // Helper function to create base claim data structure
-export function createBaseClaimData(data: ClaimantData): ClaimData {
+function createBaseClaimData(data: ClaimantData): ClaimData {
   return {
     proof: data.proof,
     amountUnlocked: new BN(data.amountUnlocked),
@@ -229,11 +115,12 @@ export function buildClaimDataForCompressedClaim(
 ): ClaimData {
   const claimData = createBaseClaimData(data);
 
+  // TODO: need to double check the math here
   return {
     ...claimData,
-    totalUnlocked: new BN(data.amountUnlocked),
-    totalLocked: new BN(data.amountLocked),
-    totalClaimed: new BN(data.amountUnlocked),
+    totalUnlocked: new BN(data.amountUnlocked).add(new BN(data.amountLocked)),
+    totalLocked: new BN(0),
+    totalClaimed: new BN(data.amountUnlocked).add(new BN(data.amountLocked)),
     canClaim: false,
   };
 }
@@ -261,19 +148,13 @@ export function buildClaimDataForVestedClaim(
     distributor.unlockPeriod
   );
 
-  const totalClaimed =
-    claim.claimsCount > 0
-      ? claim.lockedAmountWithdrawn.eq(new BN(0))
-        ? claim.unlockedAmount // user claimed only cliff amount
-        : claim.lockedAmountWithdrawn.add(claim.unlockedAmount) // user claimed both cliff and locked amount that became unlocked
-      : new BN(0);
+  const totalClaimed = calculateTotalClaimed(claim);
 
-  const canClaim = Boolean(
-    nextClaimPeriod &&
-      new Date() >= nextClaimPeriod &&
-      (distributor.claimsLimit === 0 ||
-        claim.claimsCount < distributor.claimsLimit) &&
-      !distributor.clawedBack
+  const canClaim = isClaimingAvailable(
+    nextClaimPeriod,
+    claim.claimsCount,
+    distributor.claimsLimit,
+    distributor.clawedBack
   );
 
   return {
@@ -290,4 +171,150 @@ export function buildClaimDataForVestedClaim(
     claimsCount: claim.claimsCount,
     canClaim,
   };
+}
+
+// Helper functions
+// ----------------------------
+
+function isClaimingAvailable(
+  nextClaimPeriod: Date | null,
+  claimsCount: number,
+  claimsLimit: number,
+  isClawedBack: boolean
+): boolean {
+  if (isClawedBack) return false;
+  if (nextClaimPeriod && new Date() < nextClaimPeriod) return false;
+  if (claimsLimit > 0 && claimsCount >= claimsLimit) return false;
+
+  return true;
+}
+
+function calculateTotalClaimed(claim: ClaimStatus): BN {
+  if (claim.claimsCount === 0) {
+    return new BN(0);
+  }
+
+  const hasOnlyClaimedCliff = claim.lockedAmountWithdrawn.eq(new BN(0));
+
+  if (hasOnlyClaimedCliff) {
+    return claim.unlockedAmount; // user claimed only cliff amount
+  }
+
+  return claim.lockedAmountWithdrawn.add(claim.unlockedAmount); // user claimed both cliff and locked
+}
+
+function isVestingPeriodActive(
+  currentTime: BN,
+  startTime: BN,
+  endTime: BN
+): "before" | "active" | "after" {
+  if (currentTime.lt(startTime)) return "before";
+  if (currentTime.gte(endTime)) return "after";
+  return "active";
+}
+
+function getNextClaimPeriod(
+  startTs: BN,
+  endTs: BN,
+  unlockPeriod: BN,
+  lastClaimTs: BN
+): Date | null {
+  const currentTime = new BN(Math.floor(Date.now() / 1000));
+  const vestingStatus = isVestingPeriodActive(currentTime, startTs, endTs);
+
+  if (vestingStatus === "before") {
+    return new Date(startTs.mul(new BN(1000)).toNumber());
+  }
+
+  if (vestingStatus === "after") {
+    return null;
+  }
+
+  // Calculate the next period after lastClaimTs
+  let nextPeriod = startTs;
+
+  if (lastClaimTs.gte(startTs)) {
+    const periodsSinceStart = lastClaimTs
+      .sub(startTs)
+      .div(unlockPeriod)
+      .addn(1);
+    nextPeriod = startTs.add(unlockPeriod.mul(periodsSinceStart));
+  }
+
+  if (nextPeriod.gt(endTs)) {
+    return null;
+  }
+
+  return new Date(nextPeriod.mul(new BN(1000)).toNumber());
+}
+
+function getAmountUnlockedPerPeriod(
+  totalAmount: BN,
+  initialUnlocked: BN,
+  startTime: BN,
+  endTime: BN,
+  unlockPeriod: BN
+): BN {
+  const duration = endTime.sub(startTime);
+  const periods = duration.div(unlockPeriod);
+
+  // never happens, but just in case
+  if (periods.isZero()) {
+    return initialUnlocked;
+  }
+
+  const toVest = totalAmount.sub(initialUnlocked);
+
+  // Rounded up unlock per period: ceil(toVest / periods)
+  const unlockPerPeriod = toVest.add(periods.subn(1)).div(periods);
+
+  return unlockPerPeriod;
+}
+
+function getTotalLockedAndUnlockedAmount(
+  totalAmount: BN,
+  initialUnlocked: BN,
+  startTime: BN,
+  endTime: BN,
+  unlockPeriod: BN
+): { unlocked: BN; locked: BN } {
+  const currentTime = new BN(Math.floor(Date.now() / 1000));
+  const toVest = totalAmount.sub(initialUnlocked);
+  const vestingStatus = isVestingPeriodActive(currentTime, startTime, endTime);
+
+  // Before vesting starts
+  if (vestingStatus === "before") {
+    return {
+      unlocked: initialUnlocked,
+      locked: toVest,
+    };
+  }
+
+  // After vesting ends
+  if (vestingStatus === "after") {
+    return {
+      unlocked: totalAmount,
+      locked: new BN(0),
+    };
+  }
+
+  // During vesting period
+  const totalDuration = endTime.sub(startTime);
+  const totalPeriods = totalDuration.div(unlockPeriod);
+
+  // Rounded up unlock per period
+  const unlockPerPeriod = toVest.add(totalPeriods.subn(1)).div(totalPeriods);
+  const elapsedTime = currentTime.sub(startTime);
+  const elapsedPeriods = elapsedTime.div(unlockPeriod);
+
+  // Amount unlocked during vesting so far
+  let vested = unlockPerPeriod.mul(elapsedPeriods);
+  if (vested.gt(toVest)) {
+    vested = toVest;
+  }
+
+  const unlocked = initialUnlocked.add(vested);
+  const locked = totalAmount.sub(unlocked);
+
+  return { unlocked, locked };
 }
