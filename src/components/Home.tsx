@@ -1,6 +1,9 @@
 import { distributorClient } from "@lib/constants";
 import { Airdrop } from "@lib/types";
-import { formatTokenAmount, getAirdropType, maskPublicKey } from "@lib/utils";
+import { formatTokenAmount, getAirdropType } from "@lib/utils";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { useMintStore } from "@store/mintStore";
 import { IProgramAccount } from "@streamflow/common/solana";
 import { MerkleDistributor } from "@streamflow/distributor/solana";
 import {
@@ -15,10 +18,13 @@ import { useNavigate } from "react-router-dom";
 
 export default function Home() {
   const navigate = useNavigate();
+  const { connection } = useConnection();
+  const { fetchMintInfo, getMintInfo } = useMintStore();
 
   const [distributors, setDistributors] = useState<
     IProgramAccount<MerkleDistributor>[]
   >([]);
+
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -56,6 +62,7 @@ export default function Home() {
         total: x.account.maxTotalClaim,
       },
       type: getAirdropType(x.account.startTs, x.account.endTs),
+      mint: x.account.mint,
     }));
   }, [filteredData]);
 
@@ -64,12 +71,25 @@ export default function Home() {
     return mappedData.slice(start, start + pagination.pageSize);
   }, [mappedData, pagination.pageIndex, pagination.pageSize]);
 
-  const columns = useMemo<ColumnDef<Airdrop>[]>(
+  // Fetch mint info for currently displayed rows
+  useEffect(() => {
+    if (paginatedRows.length === 0 || !connection) return;
+
+    const mints = paginatedRows.map(row => new PublicKey(row.mint));
+    fetchMintInfo(mints, connection);
+  }, [paginatedRows, connection, fetchMintInfo]);
+
+  const columns = useMemo<ColumnDef<Airdrop & { mint: PublicKey }>[]>(
     () => [
       {
         header: "Distributor",
         accessorKey: "distributor",
-        cell: ({ row }) => maskPublicKey(row.original.distributor),
+        cell: ({ row }) => row.original.distributor,
+      },
+      {
+        header: "Type",
+        accessorKey: "type",
+        cell: ({ row }) => row.original.type,
       },
       {
         header: "Recipients (claimed/total)",
@@ -84,18 +104,19 @@ export default function Home() {
         header: "Amount in Tokens (claimed/total)",
         accessorKey: "tokens",
         cell: ({ row }) => {
-          const claimed = formatTokenAmount(row.original.tokens.claimed, 9);
-          const total = formatTokenAmount(row.original.tokens.total, 9);
+          const mintInfo = getMintInfo(row.original.mint.toString());
+          const decimals = mintInfo?.decimals ?? 9;
+
+          const claimed = formatTokenAmount(
+            row.original.tokens.claimed,
+            decimals
+          );
+          const total = formatTokenAmount(row.original.tokens.total, decimals);
           return `${claimed} / ${total}`;
         },
       },
-      {
-        header: "Type",
-        accessorKey: "type",
-        cell: ({ row }) => row.original.type,
-      },
     ],
-    []
+    [getMintInfo]
   );
 
   const table = useReactTable({
@@ -106,7 +127,6 @@ export default function Home() {
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
-    debugTable: true,
   });
 
   return (
