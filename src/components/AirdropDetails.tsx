@@ -1,13 +1,6 @@
 import { Card } from "@components/ui/Card";
-import { fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
-import { unpackMint } from "@solana/spl-token";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { SendTransactionError } from "@solana/web3.js";
-import {
-  isCompressedClaimStatus,
-  MerkleDistributor,
-} from "@streamflow/distributor/solana";
-import { distributorClient, umi } from "@utils/constants";
+import { distributorClient, umi } from "@lib/constants";
+import { ClaimData, TokenInfo } from "@lib/types";
 import {
   buildClaimDataForCompressedClaim,
   buildClaimDataForNoClaim,
@@ -16,8 +9,15 @@ import {
   formatDate,
   formatTokenAmount,
   getAirdropType,
-} from "@utils/functions";
-import { ClaimData, TokenInfo } from "@utils/types";
+} from "@lib/utils";
+import { fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
+import { unpackMint } from "@solana/spl-token";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { SendTransactionError } from "@solana/web3.js";
+import {
+  isCompressedClaimStatus,
+  MerkleDistributor,
+} from "@streamflow/distributor/solana";
 import BN from "bn.js";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";

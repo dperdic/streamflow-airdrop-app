@@ -1,5 +1,5 @@
+import { ClaimantData, ClaimData } from "@lib/types";
 import { ClaimStatus, MerkleDistributor } from "@streamflow/distributor/solana";
-import { ClaimantData, ClaimData } from "@utils/types";
 import BN from "bn.js";
 import { format } from "date-fns";
 
@@ -165,8 +165,6 @@ export function buildClaimDataForVestedClaim(
     totalLocked: locked,
     totalClaimed,
     nextClaimPeriod,
-    lockedAmountWithdrawn: claim.lockedAmountWithdrawn,
-    closedTs: claim.closedTs,
     claimsCount: claim.claimsCount,
     canClaim,
   };

@@ -1,4 +1,6 @@
-import { distributorClient } from "@/utils/constants";
+import { distributorClient } from "@lib/constants";
+import { Airdrop } from "@lib/types";
+import { formatTokenAmount, getAirdropType, maskPublicKey } from "@lib/utils";
 import { IProgramAccount } from "@streamflow/common/solana";
 import { MerkleDistributor } from "@streamflow/distributor/solana";
 import {
@@ -8,12 +10,6 @@ import {
   PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
-import {
-  formatTokenAmount,
-  getAirdropType,
-  maskPublicKey,
-} from "@utils/functions";
-import { Airdrop } from "@utils/types";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 

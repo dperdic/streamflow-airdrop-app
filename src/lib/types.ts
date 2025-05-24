@@ -31,20 +31,13 @@ export type TokenInfo = {
 };
 
 export type ClaimData = {
-  // used for claiming request
   proof: number[][];
   amountUnlocked: BN;
   amountLocked: BN;
-
-  // used for displaying the total amount of tokens
   totalClaimed: BN;
-  totalUnlocked: BN; // calculated based on startTs, endTs, unlockPeriod
-  totalLocked: BN; // calculated based on startTs, endTs, unlockPeriod
-  unlockPerPeriod: BN; // calculated based on totalAmount, amountUnlocked, startTs, endTs, unlockPeriod
-
-  // blockchain results
-  lockedAmountWithdrawn?: BN;
-  closedTs?: BN;
+  totalUnlocked: BN;
+  totalLocked: BN;
+  unlockPerPeriod: BN;
   claimsCount?: number;
   nextClaimPeriod?: Date | null;
   canClaim: boolean;
