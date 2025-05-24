@@ -115,7 +115,6 @@ export function buildClaimDataForCompressedClaim(
 ): ClaimData {
   const claimData = createBaseClaimData(data);
 
-  // TODO: need to double check the math here
   return {
     ...claimData,
     totalUnlocked: new BN(data.amountUnlocked).add(new BN(data.amountLocked)),
