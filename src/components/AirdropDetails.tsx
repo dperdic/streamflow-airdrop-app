@@ -161,9 +161,11 @@ export default function AirdropDetails() {
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
         <h2 className="text-lg break-all">Distributor: {id}</h2>
         <h2 className="text-lg break-all">Mint: {mintInfo?.mint.toString()}</h2>
-        <h2 className="text-lg break-all">
-          Token: {mintInfo?.name} ({mintInfo?.symbol})
-        </h2>
+        {mintInfo?.name && mintInfo?.symbol && (
+          <h2 className="text-lg break-all">
+            Token: {mintInfo?.name} ({mintInfo?.symbol})
+          </h2>
+        )}
       </div>
 
       <div className="flex flex-col gap-4">
