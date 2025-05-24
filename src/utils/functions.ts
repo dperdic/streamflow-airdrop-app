@@ -134,8 +134,9 @@ export function getAmountUnlockedPerPeriod(
   const duration = endTime.sub(startTime);
   const periods = duration.div(unlockPeriod);
 
+  // never happens, but just in case
   if (periods.isZero()) {
-    throw new Error("Unlock duration is shorter than one unlock period");
+    return initialUnlocked;
   }
 
   const toVest = totalAmount.sub(initialUnlocked);

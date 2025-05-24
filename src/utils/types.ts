@@ -46,8 +46,7 @@ export type ClaimData = {
   lastAmountPerUnlock?: BN;
   lockedAmountWithdrawn?: BN;
   closedTs?: BN;
-
+  claimsCount?: number;
   nextClaimPeriod?: Date | null;
-
   canClaim: boolean;
 };

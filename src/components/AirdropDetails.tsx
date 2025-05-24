@@ -30,6 +30,7 @@ export default function AirdropDetails() {
   const [distributor, setDistributor] = useState<MerkleDistributor | null>(
     null
   );
+  const [airdropType, setAirdropType] = useState<string | null>(null);
   const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
   const [claimData, setClaimData] = useState<ClaimData | null>(null);
 
@@ -42,6 +43,7 @@ export default function AirdropDetails() {
 
     if (res) {
       setDistributor(res);
+      setAirdropType(getAirdropType(res.startTs, res.endTs));
     }
   }, [id]);
 
@@ -122,7 +124,7 @@ export default function AirdropDetails() {
   // }, [id, publicKey]);
 
   const fetchClaimData = useCallback(async () => {
-    if (!id || !publicKey || !distributor) return;
+    if (!id || !publicKey || !distributor || !airdropType) return;
 
     const claimData: ClaimData = {
       proof: [],
@@ -134,8 +136,6 @@ export default function AirdropDetails() {
       totalClaimed: new BN(0),
       unlockPerPeriod: new BN(0),
     };
-
-    const airdropType = getAirdropType(distributor.startTs, distributor.endTs);
 
     let data: ClaimantData;
 
@@ -161,6 +161,7 @@ export default function AirdropDetails() {
       if (airdropType === "Instant") {
         claimData.amountUnlocked = new BN(data.amountUnlocked);
         claimData.amountLocked = new BN(data.amountLocked);
+        claimData.unlockPerPeriod = new BN(data.amountUnlocked);
         claimData.canClaim = true;
       }
     } catch (error) {
@@ -177,6 +178,9 @@ export default function AirdropDetails() {
           recipient: publicKey.toString(),
         },
       ]);
+
+      console.log("claim", claim);
+      console.log("distributor", distributor);
 
       // it is null if the user has not claimed yet if the airdrop is instant or vested
       if (claim === null) {
@@ -241,6 +245,8 @@ export default function AirdropDetails() {
           distributor.unlockPeriod
         );
 
+        console.log("unlockPerPeriod", unlockPerPeriod.toString());
+
         claimData.unlockPerPeriod = unlockPerPeriod;
         claimData.amountUnlocked = claim.unlockedAmount;
         claimData.amountLocked = claim.lockedAmount;
@@ -271,7 +277,7 @@ export default function AirdropDetails() {
       toast.error("An error occurred while fetching claims");
       setClaimData(null);
     }
-  }, [id, publicKey, distributor]);
+  }, [id, publicKey, distributor, airdropType]);
 
   // done
   const fetchMintInfo = useCallback(async () => {
@@ -434,6 +440,27 @@ export default function AirdropDetails() {
                     footer="$12.3"
                   />
                 </div>
+
+                {airdropType === "Vested" && (
+                  <div className="flex flex-col justify-start gap-4 md:flex-row">
+                    <Card
+                      title="Unlocked per period"
+                      value={formatTokenAmount(
+                        claimData.unlockPerPeriod,
+                        mintInfo?.decimals ?? 9
+                      )}
+                      footer="$12.3"
+                    />
+                    <Card
+                      title="Claims limit"
+                      value={
+                        distributor.claimsLimit > 0
+                          ? distributor.claimsLimit.toString()
+                          : "No limit"
+                      }
+                    />
+                  </div>
+                )}
               </div>
 
               {claimData.canClaim && (
@@ -452,6 +479,13 @@ export default function AirdropDetails() {
                   <p className="text-center text-xl font-medium">
                     Claiming is available{" "}
                     {formatDate(claimData.nextClaimPeriod)}, come back later.
+                  </p>
+                )}
+
+              {claimData.claimsCount &&
+                claimData.claimsCount === distributor.claimsLimit && (
+                  <p className="text-center text-xl font-medium">
+                    You have reached the maximum number of claims.
                   </p>
                 )}
             </>
