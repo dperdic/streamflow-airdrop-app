@@ -14,6 +14,7 @@ import { fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
 import { unpackMint } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { SendTransactionError } from "@solana/web3.js";
+import { useMintStore } from "@store/mintStore";
 import {
   isCompressedClaimStatus,
   MerkleDistributor,
@@ -27,6 +28,7 @@ export default function AirdropDetails() {
   const { id } = useParams<{ id: string }>();
   const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
+  const { getMintInfo } = useMintStore();
 
   const [distributor, setDistributor] = useState<MerkleDistributor | null>(
     null
@@ -90,6 +92,7 @@ export default function AirdropDetails() {
   const fetchMintInfo = useCallback(async () => {
     if (!connection || !distributor) return;
 
+    // try to fetch metadata first
     try {
       const asset = await fetchDigitalAsset(umi, distributor.mint as any);
 
@@ -101,6 +104,17 @@ export default function AirdropDetails() {
       });
     } catch (_error) {
       // no metadata, can't fetch token name and symbol can get mint and decimals
+      // check mint store for mint info first
+      const mintInfo = getMintInfo(distributor.mint.toString());
+
+      if (mintInfo) {
+        setMintInfo({
+          mint: mintInfo.publicKey.toString(),
+          decimals: mintInfo.decimals,
+        });
+        return;
+      }
+
       const mintAccountInfo = await connection.getAccountInfo(distributor.mint);
 
       if (mintAccountInfo) {
@@ -112,7 +126,7 @@ export default function AirdropDetails() {
         });
       }
     }
-  }, [connection, distributor]);
+  }, [connection, distributor, getMintInfo]);
 
   const claimAirdrop = async () => {
     if (!wallet || !publicKey || !id || !claimData) return;
@@ -292,7 +306,7 @@ export default function AirdropDetails() {
             </>
           ) : (
             <p className="text-center text-xl font-medium">
-              YOu are not eligible for this airdrop.
+              You are not eligible for this airdrop.
             </p>
           )}
         </>
