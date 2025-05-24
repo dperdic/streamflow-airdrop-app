@@ -1,11 +1,9 @@
-import { distributorClient } from "@lib/constants";
 import { Airdrop } from "@lib/types";
 import { formatTokenAmount, getAirdropType } from "@lib/utils";
+import useDistributors from "@queries/useDistributors";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useMintStore } from "@store/mintStore";
-import { IProgramAccount } from "@streamflow/common/solana";
-import { MerkleDistributor } from "@streamflow/distributor/solana";
 import {
   ColumnDef,
   flexRender,
@@ -21,9 +19,7 @@ export default function Home() {
   const { connection } = useConnection();
   const { fetchMintInfo, getMintInfo } = useMintStore();
 
-  const [distributors, setDistributors] = useState<
-    IProgramAccount<MerkleDistributor>[]
-  >([]);
+  const { data: distributors, isLoading, error, isError } = useDistributors();
 
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
@@ -31,17 +27,10 @@ export default function Home() {
     pageSize: 10,
   });
 
-  // Fetch all distributors
-  useEffect(() => {
-    const getDistributorData = async () => {
-      const distributors = await distributorClient.searchDistributors({});
-      setDistributors(distributors);
-    };
-    getDistributorData();
-  }, []);
-
   // Filter and sort
   const filteredData = useMemo(() => {
+    if (!distributors) return [];
+
     return distributors
       .filter(d =>
         d.publicKey.toString().toLowerCase().includes(search.toLowerCase())
@@ -128,6 +117,30 @@ export default function Home() {
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div>Loading airdrops...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="py-8 text-center">
+        <div className="text-xl font-medium">
+          Failed to load airdrops: {error?.message}
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn btn-md btn-black"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
