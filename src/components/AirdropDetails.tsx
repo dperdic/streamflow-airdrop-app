@@ -72,7 +72,7 @@ export default function AirdropDetails() {
         // No claim PDA yet - calculate unlocked/locked amounts
         claimData = buildClaimDataForNoClaim(data, distributor, airdropType);
       } else if (isCompressedClaimStatus(claim)) {
-        // Compressed claim already made or closed
+        // Claim already made, PDA compressed or closed
         claimData = buildClaimDataForCompressedClaim(data);
       } else {
         // Vested claim, PDA exists
