@@ -114,8 +114,7 @@ export default function AirdropDetails() {
     }
   }, [connection, distributor]);
 
-  // done
-  const claimAirdrop = useCallback(async () => {
+  const claimAirdrop = async () => {
     if (!wallet || !publicKey || !id || !claimData) return;
 
     try {
@@ -138,7 +137,7 @@ export default function AirdropDetails() {
       fetchDistributor();
       fetchClaimData();
     }
-  }, [publicKey, id, wallet, claimData, fetchDistributor, fetchClaimData]);
+  };
 
   useEffect(() => {
     fetchDistributor();
