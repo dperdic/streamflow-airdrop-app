@@ -81,13 +81,13 @@ export function getNextClaimPeriod(
     return null;
   }
 
-  const now = new BN(Math.floor(Date.now() / 1000));
+  const currentTime = new BN(Math.floor(Date.now() / 1000));
 
-  if (now.lt(startTs)) {
+  if (currentTime.lt(startTs)) {
     return new Date(startTs.mul(new BN(1000)).toNumber());
   }
 
-  if (now.gt(endTs)) {
+  if (currentTime.gt(endTs)) {
     return null;
   }
 
@@ -122,4 +122,78 @@ export function formatDate(date: Date | string | null | undefined): string {
     console.error("Error formatting date:", error);
     return "Invalid date";
   }
+}
+
+export function getAmountUnlockedPerPeriod(
+  totalAmount: BN,
+  initialUnlocked: BN,
+  startTime: BN,
+  endTime: BN,
+  unlockPeriod: BN
+) {
+  const duration = endTime.sub(startTime);
+  const periods = duration.div(unlockPeriod);
+
+  if (periods.isZero()) {
+    throw new Error("Unlock duration is shorter than one unlock period");
+  }
+
+  const toVest = totalAmount.sub(initialUnlocked);
+
+  // Rounded up unlock per period: ceil(toVest / periods)
+  const unlockPerPeriod = toVest.add(periods.subn(1)).div(periods);
+
+  return unlockPerPeriod;
+}
+
+export function getUnlockedAndLockedAmount(
+  totalAmount: BN,
+  initialUnlocked: BN,
+  startTime: BN,
+  endTime: BN,
+  unlockPeriod: BN
+) {
+  const currentTime = new BN(Math.floor(Date.now() / 1000));
+
+  const toVest = totalAmount.sub(initialUnlocked);
+
+  // Before vesting starts
+  if (currentTime.lt(startTime)) {
+    return {
+      unlocked: initialUnlocked,
+      locked: toVest,
+    };
+  }
+
+  // After vesting ends
+  if (currentTime.gte(endTime)) {
+    return {
+      unlocked: totalAmount,
+      locked: new BN(0),
+    };
+  }
+
+  const totalDuration = endTime.sub(startTime);
+  const totalPeriods = totalDuration.div(unlockPeriod);
+  if (totalPeriods.isZero()) {
+    throw new Error("Unlock period longer than total duration");
+  }
+
+  // Rounded up unlock per period
+  const unlockPerPeriod = toVest.add(totalPeriods.subn(1)).div(totalPeriods);
+
+  const elapsedTime = currentTime.sub(startTime);
+  const elapsedPeriods = elapsedTime.div(unlockPeriod);
+
+  // Amount unlocked during vesting so far
+  let vested = unlockPerPeriod.mul(elapsedPeriods);
+  if (vested.gt(toVest)) vested = toVest;
+
+  const unlocked = initialUnlocked.add(vested);
+  const locked = totalAmount.sub(unlocked);
+
+  return {
+    unlocked,
+    locked,
+  };
 }
