@@ -245,17 +245,18 @@ export default function AirdropDetails() {
           distributor.unlockPeriod
         );
 
-        console.log("unlockPerPeriod", unlockPerPeriod.toString());
-
         claimData.unlockPerPeriod = unlockPerPeriod;
         claimData.amountUnlocked = claim.unlockedAmount;
         claimData.amountLocked = claim.lockedAmount;
 
         claimData.totalUnlocked = unlocked;
         claimData.totalLocked = locked;
-        claimData.totalClaimed = claim.lockedAmountWithdrawn.eq(new BN(0))
-          ? new BN(0) // assumes that on initial claim the user claims cliff and period 0 amount
-          : claim.lockedAmountWithdrawn.add(claim.unlockedAmount);
+        claimData.totalClaimed =
+          claim.claimsCount > 0
+            ? claim.lockedAmountWithdrawn.eq(new BN(0))
+              ? claim.unlockedAmount // user claimed only cliff amount
+              : claim.lockedAmountWithdrawn.add(claim.unlockedAmount) // user claimed both cliff and locked amount that became unlocked
+            : claimData.totalClaimed;
 
         claimData.nextClaimPeriod = nextPeriod;
         claimData.lastAmountPerUnlock = claim.lastAmountPerUnlock;
