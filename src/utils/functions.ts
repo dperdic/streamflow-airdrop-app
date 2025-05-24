@@ -1,6 +1,5 @@
-import { Connection, PublicKey } from "@solana/web3.js";
-import { getClaimantStatusPda } from "@streamflow/distributor/solana";
-import { distributorClient } from "@utils/constants";
+import { ClaimStatus, MerkleDistributor } from "@streamflow/distributor/solana";
+import { ClaimantData, ClaimData } from "@utils/types";
 import BN from "bn.js";
 import { format } from "date-fns";
 
@@ -23,51 +22,19 @@ export function maskPublicKey(publicKey: string) {
   return publicKey.slice(0, 5) + "..." + publicKey.slice(-5);
 }
 
-export async function getAmountClaimed(
-  distributor: PublicKey,
-  claimant: PublicKey,
-  connection: Connection
-) {
-  const programId = distributorClient.getDistributorProgramId();
-
-  const distributorPDA = getClaimantStatusPda(programId, distributor, claimant);
-
-  const signatures = await connection.getSignaturesForAddress(distributorPDA, {
-    limit: 20,
-  });
-
-  if (signatures.length === 0) return new BN(0);
-
-  let totalReceived = new BN(0);
-
-  for (const { signature } of signatures) {
-    const tx = await connection.getParsedTransaction(signature, {
-      maxSupportedTransactionVersion: 0,
-      commitment: "confirmed",
-    });
-
-    if (!tx || !tx.meta) continue;
-
-    const { preTokenBalances, postTokenBalances } = tx.meta;
-
-    const recipient = postTokenBalances?.find(
-      x => x.owner === claimant.toString() && x.accountIndex !== undefined
-    );
-
-    if (!recipient) continue;
-
-    const recipientPreAmount = new BN(
-      preTokenBalances?.find(b => b.accountIndex === recipient.accountIndex)
-        ?.uiTokenAmount.amount ?? "0"
-    );
-    const recipientPostAmount = new BN(recipient.uiTokenAmount.amount);
-
-    const received = recipientPostAmount.sub(recipientPreAmount);
-
-    totalReceived = totalReceived.add(received);
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) {
+    return "";
   }
 
-  return totalReceived;
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+
+    return format(dateObj, "dd.MM.yyyy. HH:mm");
+  } catch (error) {
+    console.error("Error formatting date: ", error);
+    return "";
+  }
 }
 
 export function getNextClaimPeriod(
@@ -109,21 +76,6 @@ export function getNextClaimPeriod(
   return new Date(nextPeriod.mul(new BN(1000)).toNumber());
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) {
-    return "";
-  }
-
-  try {
-    const dateObj = typeof date === "string" ? new Date(date) : date;
-
-    return format(dateObj, "dd.MM.yyyy. HH:mm");
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return "Invalid date";
-  }
-}
-
 export function getAmountUnlockedPerPeriod(
   totalAmount: BN,
   initialUnlocked: BN,
@@ -147,7 +99,7 @@ export function getAmountUnlockedPerPeriod(
   return unlockPerPeriod;
 }
 
-export function getUnlockedAndLockedAmount(
+export function getTotalLockedAndUnlockedAmount(
   totalAmount: BN,
   initialUnlocked: BN,
   startTime: BN,
@@ -196,5 +148,146 @@ export function getUnlockedAndLockedAmount(
   return {
     unlocked,
     locked,
+  };
+}
+
+// Helper function to fetch claimant data from API
+export async function fetchClaimantDataFromAPI(
+  id: string,
+  publicKey: string
+): Promise<ClaimantData | null> {
+  const response = await fetch(
+    `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey}`
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data: ClaimantData = await response.json();
+  return data || null;
+}
+
+// Helper function to create base claim data structure
+export function createBaseClaimData(data: ClaimantData): ClaimData {
+  return {
+    proof: data.proof,
+    amountUnlocked: new BN(data.amountUnlocked),
+    amountLocked: new BN(data.amountLocked),
+    totalUnlocked: new BN(0),
+    totalLocked: new BN(0),
+    canClaim: false,
+    totalClaimed: new BN(0),
+    unlockPerPeriod: new BN(0),
+  };
+}
+
+// Helper function to handle claim data when no claim PDA exists yet
+export function buildClaimDataForNoClaim(
+  data: ClaimantData,
+  distributor: MerkleDistributor,
+  airdropType: string
+): ClaimData {
+  const claimData = createBaseClaimData(data);
+  const totalAmount = new BN(data.amountLocked).add(
+    new BN(data.amountUnlocked)
+  );
+
+  const { locked, unlocked } = getTotalLockedAndUnlockedAmount(
+    totalAmount,
+    new BN(data.amountUnlocked),
+    distributor.startTs,
+    distributor.endTs,
+    distributor.unlockPeriod
+  );
+
+  const unlockPerPeriod =
+    airdropType === "Instant"
+      ? new BN(data.amountUnlocked)
+      : getAmountUnlockedPerPeriod(
+          totalAmount,
+          new BN(data.amountUnlocked),
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod
+        );
+
+  return {
+    ...claimData,
+    totalUnlocked: unlocked,
+    totalLocked: locked,
+    totalClaimed: new BN(0),
+    nextClaimPeriod: new Date(distributor.startTs.mul(new BN(1000)).toNumber()),
+    unlockPerPeriod,
+    canClaim: !distributor.clawedBack,
+  };
+}
+
+// Helper function to handle compressed (instant) claim data
+export function buildClaimDataForCompressedClaim(
+  data: ClaimantData
+): ClaimData {
+  const claimData = createBaseClaimData(data);
+
+  return {
+    ...claimData,
+    totalUnlocked: new BN(data.amountUnlocked),
+    totalLocked: new BN(data.amountLocked),
+    totalClaimed: new BN(data.amountUnlocked),
+    canClaim: false,
+  };
+}
+
+// Helper function to handle vested claim data
+export function buildClaimDataForVestedClaim(
+  data: ClaimantData,
+  claim: ClaimStatus,
+  distributor: MerkleDistributor
+): ClaimData {
+  const claimData = createBaseClaimData(data);
+
+  const nextClaimPeriod = getNextClaimPeriod(
+    distributor.startTs,
+    distributor.endTs,
+    distributor.unlockPeriod,
+    claim.lastClaimTs
+  );
+
+  const { locked, unlocked } = getTotalLockedAndUnlockedAmount(
+    claim.lockedAmount.add(claim.unlockedAmount),
+    claim.unlockedAmount,
+    distributor.startTs,
+    distributor.endTs,
+    distributor.unlockPeriod
+  );
+
+  const totalClaimed =
+    claim.claimsCount > 0
+      ? claim.lockedAmountWithdrawn.eq(new BN(0))
+        ? claim.unlockedAmount // user claimed only cliff amount
+        : claim.lockedAmountWithdrawn.add(claim.unlockedAmount) // user claimed both cliff and locked amount that became unlocked
+      : new BN(0);
+
+  const canClaim = Boolean(
+    nextClaimPeriod &&
+      new Date() >= nextClaimPeriod &&
+      (distributor.claimsLimit === 0 ||
+        claim.claimsCount < distributor.claimsLimit) &&
+      !distributor.clawedBack
+  );
+
+  return {
+    ...claimData,
+    unlockPerPeriod: claim.lastAmountPerUnlock,
+    amountUnlocked: claim.unlockedAmount,
+    amountLocked: claim.lockedAmount,
+    totalUnlocked: unlocked,
+    totalLocked: locked,
+    totalClaimed,
+    nextClaimPeriod,
+    lockedAmountWithdrawn: claim.lockedAmountWithdrawn,
+    closedTs: claim.closedTs,
+    claimsCount: claim.claimsCount,
+    canClaim,
   };
 }
