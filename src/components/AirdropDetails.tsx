@@ -125,20 +125,18 @@ export default function AirdropDetails() {
   const fetchClaimData = useCallback(async () => {
     if (!id || !publicKey || !distributor || !airdropType) return;
 
-    const claimData: ClaimData = {
-      proof: [],
-      amountUnlocked: new BN(0),
-      amountLocked: new BN(0),
-      totalUnlocked: new BN(0),
-      totalLocked: new BN(0),
-      canClaim: false,
-      totalClaimed: new BN(0),
-      unlockPerPeriod: new BN(0),
-    };
-
-    let data: ClaimantData;
-
     try {
+      const claimData: ClaimData = {
+        proof: [],
+        amountUnlocked: new BN(0),
+        amountLocked: new BN(0),
+        totalUnlocked: new BN(0),
+        totalLocked: new BN(0),
+        canClaim: false,
+        totalClaimed: new BN(0),
+        unlockPerPeriod: new BN(0),
+      };
+
       const response = await fetch(
         `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey.toString()}`
       );
@@ -148,7 +146,7 @@ export default function AirdropDetails() {
         return;
       }
 
-      data = await response.json();
+      const data: ClaimantData = await response.json();
 
       if (data === null) {
         setClaimData(null);
@@ -161,16 +159,9 @@ export default function AirdropDetails() {
         claimData.amountUnlocked = new BN(data.amountUnlocked);
         claimData.amountLocked = new BN(data.amountLocked);
         claimData.unlockPerPeriod = new BN(data.amountUnlocked);
-        claimData.canClaim = true;
+        claimData.canClaim = distributor.clawedBack === false;
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("An error occurred while fetching claimant data");
-      setClaimData(null);
-      return;
-    }
 
-    try {
       const [claim] = await distributorClient.getClaims([
         {
           id,
@@ -208,7 +199,7 @@ export default function AirdropDetails() {
 
         claimData.unlockPerPeriod = unlockPerPeriod;
 
-        claimData.canClaim = true;
+        claimData.canClaim = distributor.clawedBack === false;
 
         setClaimData(claimData);
         return;
@@ -221,9 +212,6 @@ export default function AirdropDetails() {
         claimData.totalUnlocked = new BN(data.amountUnlocked);
         claimData.totalLocked = new BN(data.amountLocked);
         claimData.totalClaimed = new BN(data.amountUnlocked);
-        // claimData.nextClaimPeriod = new Date(
-        //   distributor.startTs.mul(new BN(1000)).toNumber()
-        // );
 
         claimData.canClaim = false;
 
@@ -280,8 +268,10 @@ export default function AirdropDetails() {
           nextPeriod &&
           now >= nextPeriod &&
           (distributor.claimsLimit === 0 ||
-            claimData.claimsCount < distributor.claimsLimit)
+            claimData.claimsCount < distributor.claimsLimit) &&
+          distributor.clawedBack === false
         ) {
+          console.log("can claim");
           claimData.canClaim = true;
         } else {
           claimData.canClaim = false;
@@ -291,8 +281,9 @@ export default function AirdropDetails() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("An error occurred while fetching claims");
+      toast.error("An error occurred while fetching claim data");
       setClaimData(null);
+      return;
     }
   }, [id, publicKey, distributor, airdropType]);
 
@@ -494,6 +485,12 @@ export default function AirdropDetails() {
                     You have reached the maximum number of claims.
                   </p>
                 )}
+
+              {distributor.clawedBack && (
+                <p className="text-center text-xl font-medium">
+                  The airdrop has been clawed back.
+                </p>
+              )}
             </>
           ) : (
             <p className="text-center text-xl font-medium">
