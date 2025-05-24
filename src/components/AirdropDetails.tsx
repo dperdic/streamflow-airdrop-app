@@ -17,7 +17,7 @@ import {
   formatTokenAmount,
   getAirdropType,
 } from "@utils/functions";
-import { ClaimData, MintInfo } from "@utils/types";
+import { ClaimData, TokenInfo } from "@utils/types";
 import BN from "bn.js";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -32,7 +32,7 @@ export default function AirdropDetails() {
     null
   );
   const [airdropType, setAirdropType] = useState<string | null>(null);
-  const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
+  const [mintInfo, setMintInfo] = useState<TokenInfo | null>(null);
   const [claimData, setClaimData] = useState<ClaimData | null>(null);
 
   const fetchDistributor = useCallback(async () => {

@@ -23,7 +23,7 @@ export type ClaimantData = {
   proof: number[][];
 };
 
-export type MintInfo = {
+export type TokenInfo = {
   mint: string;
   name?: string;
   symbol?: string;
