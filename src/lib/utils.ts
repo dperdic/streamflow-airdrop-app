@@ -1,4 +1,6 @@
 import { ClaimantData, ClaimData } from "@lib/types";
+import { unpackMint } from "@solana/spl-token";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { ClaimStatus, MerkleDistributor } from "@streamflow/distributor/solana";
 import BN from "bn.js";
 import { format } from "date-fns";
@@ -168,6 +170,38 @@ export function buildClaimDataForVestedClaim(
     claimsCount: claim.claimsCount,
     canClaim,
   };
+}
+
+export async function getMintInfo(
+  publicKeys: PublicKey[],
+  connection: Connection
+) {
+  const accounts = await connection.getMultipleAccountsInfo(publicKeys);
+
+  const mintInfo = accounts
+    .map((account, index) => {
+      if (!account) {
+        return null;
+      }
+
+      try {
+        const mint = unpackMint(publicKeys[index], account);
+
+        return {
+          publicKey: mint.address,
+          decimals: mint.decimals,
+        };
+      } catch (error) {
+        console.warn(
+          `Failed to unpack mint for ${publicKeys[index].toString()}:`,
+          error
+        );
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  return mintInfo;
 }
 
 // Helper functions
