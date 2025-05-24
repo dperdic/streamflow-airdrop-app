@@ -31,15 +31,18 @@ export type MintInfo = {
 };
 
 export type ClaimData = {
-  // api results
+  // used for claiming request
   proof: number[][];
-
-  // api results or blockchain results
   amountUnlocked: BN;
   amountLocked: BN;
 
+  // used for displaying the total amount of tokens
+  totalClaimed: BN;
+  totalUnlocked: BN; // calculated based on startTs, endTs, unlockPeriod
+  totalLocked: BN; // calculated based on startTs, endTs, unlockPeriod
+  unlockPerPeriod: BN; // calculated based on totalAmount, amountUnlocked, startTs, endTs, unlockPeriod
+
   // blockchain results
-  lastClaimTs?: BN;
   lastAmountPerUnlock?: BN;
   lockedAmountWithdrawn?: BN;
   closedTs?: BN;

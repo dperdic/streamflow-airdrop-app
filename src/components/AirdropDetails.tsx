@@ -12,7 +12,9 @@ import {
   formatDate,
   formatTokenAmount,
   getAirdropType,
+  getAmountUnlockedPerPeriod,
   getNextClaimPeriod,
+  getUnlockedAndLockedAmount,
 } from "@utils/functions";
 import { ClaimantData, ClaimData, MintInfo } from "@utils/types";
 import BN from "bn.js";
@@ -126,10 +128,16 @@ export default function AirdropDetails() {
       proof: [],
       amountUnlocked: new BN(0),
       amountLocked: new BN(0),
+      totalUnlocked: new BN(0),
+      totalLocked: new BN(0),
       canClaim: false,
+      totalClaimed: new BN(0),
+      unlockPerPeriod: new BN(0),
     };
 
     const airdropType = getAirdropType(distributor.startTs, distributor.endTs);
+
+    let data: ClaimantData;
 
     try {
       const response = await fetch(
@@ -141,7 +149,12 @@ export default function AirdropDetails() {
         return;
       }
 
-      const data: ClaimantData = await response.json();
+      data = await response.json();
+
+      if (data === null) {
+        setClaimData(null);
+        return;
+      }
 
       claimData.proof = data.proof;
 
@@ -154,14 +167,8 @@ export default function AirdropDetails() {
       console.error(error);
       toast.error("An error occurred while fetching claimant data");
       setClaimData(null);
-    }
-
-    if (airdropType === "Instant") {
-      setClaimData(claimData);
       return;
     }
-
-    console.log("called 2");
 
     try {
       const [claim] = await distributorClient.getClaims([
@@ -171,12 +178,32 @@ export default function AirdropDetails() {
         },
       ]);
 
+      // it is null if the user has not claimed yet if the airdrop is instant or vested
       if (claim === null) {
+        claimData.amountUnlocked = new BN(data.amountUnlocked);
+        claimData.amountLocked = new BN(data.amountLocked);
+        claimData.totalUnlocked = new BN(data.amountUnlocked);
+        claimData.totalLocked = new BN(data.amountLocked);
+        claimData.totalClaimed = new BN(0);
+        claimData.nextClaimPeriod = new Date(
+          distributor.startTs.mul(new BN(1000)).toNumber()
+        );
         claimData.canClaim = true;
+
         setClaimData(claimData);
         return;
+        // if the user has claimed but the airdrop is instant
       } else if (isCompressedClaimStatus(claim)) {
+        claimData.amountUnlocked = new BN(data.amountUnlocked);
+        claimData.amountLocked = new BN(data.amountLocked);
+        claimData.totalUnlocked = new BN(data.amountUnlocked);
+        claimData.totalLocked = new BN(data.amountLocked);
+        claimData.totalClaimed = new BN(data.amountUnlocked);
+        claimData.nextClaimPeriod = new Date(
+          distributor.startTs.mul(new BN(1000)).toNumber()
+        );
         claimData.canClaim = false;
+
         setClaimData(claimData);
         return;
       } else {
@@ -198,15 +225,38 @@ export default function AirdropDetails() {
           claim.lastClaimTs
         );
 
-        const now = new Date();
+        const { locked, unlocked } = getUnlockedAndLockedAmount(
+          claim.lockedAmount.add(claim.unlockedAmount),
+          claim.unlockedAmount,
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod
+        );
 
-        claimData.amountUnlocked = claim.unlockedAmount; // TODO: calculate this based on unlock period
-        claimData.amountLocked = claim.lockedAmount; // TODO: calculate this based on unlock period
+        const unlockPerPeriod = getAmountUnlockedPerPeriod(
+          claim.lockedAmount.add(claim.unlockedAmount),
+          claim.unlockedAmount,
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod
+        );
+
+        claimData.unlockPerPeriod = unlockPerPeriod;
+        claimData.amountUnlocked = claim.unlockedAmount;
+        claimData.amountLocked = claim.lockedAmount;
+
+        claimData.totalUnlocked = unlocked;
+        claimData.totalLocked = locked;
+        claimData.totalClaimed = claim.lockedAmountWithdrawn.eq(new BN(0))
+          ? new BN(0) // assumes that on initial claim the user claims cliff and period 0 amount
+          : claim.lockedAmountWithdrawn.add(claim.unlockedAmount);
+
         claimData.nextClaimPeriod = nextPeriod;
-        claimData.lastClaimTs = claim.lastClaimTs;
         claimData.lastAmountPerUnlock = claim.lastAmountPerUnlock;
         claimData.lockedAmountWithdrawn = claim.lockedAmountWithdrawn;
         claimData.closedTs = claim.closedTs;
+
+        const now = new Date();
 
         if (nextPeriod && now >= nextPeriod) {
           claimData.canClaim = true;
@@ -317,102 +367,99 @@ export default function AirdropDetails() {
         </h2>
       </div>
 
-      <div className="flex flex-col justify-between gap-4 md:flex-row">
-        <Card
-          title="Airdrop type"
-          value={getAirdropType(distributor.startTs, distributor.endTs)}
-        />
-        <Card title="Recipients" value={distributor.maxNumNodes.toString()} />
-        <Card
-          title="Recipients Claimed/Total"
-          value={`${distributor.numNodesClaimed.toString()} / ${distributor.maxNumNodes.toString()}`}
-        />
-        <Card
-          title="Amount claimed/Total"
-          value={`${formatTokenAmount(
-            distributor.totalAmountClaimed,
-            mintInfo?.decimals ?? 9
-          )} / ${formatTokenAmount(
-            distributor.maxTotalClaim,
-            mintInfo?.decimals ?? 9
-          )}`}
-        />
+      <div className="flex flex-col gap-4">
+        <h3 className="text-lg font-medium">Global Airdrop Details</h3>
+
+        <div className="flex flex-col justify-between gap-4 md:flex-row">
+          <Card
+            title="Airdrop type"
+            value={getAirdropType(distributor.startTs, distributor.endTs)}
+          />
+          <Card title="Recipients" value={distributor.maxNumNodes.toString()} />
+          <Card
+            title="Recipients Claimed/Total"
+            value={`${distributor.numNodesClaimed.toString()} / ${distributor.maxNumNodes.toString()}`}
+          />
+          <Card
+            title="Amount claimed/Total"
+            value={`${formatTokenAmount(
+              distributor.totalAmountClaimed,
+              mintInfo?.decimals ?? 9
+            )} / ${formatTokenAmount(
+              distributor.maxTotalClaim,
+              mintInfo?.decimals ?? 9
+            )}`}
+          />
+        </div>
       </div>
 
-      {publicKey && claimData ? (
+      {publicKey ? (
         <>
-          <div className="flex flex-col justify-between gap-4 md:flex-row">
-            <Card
-              title="Total"
-              value={formatTokenAmount(
-                claimData.amountUnlocked.add(claimData.amountLocked),
-                mintInfo?.decimals ?? 9
-              )}
-              footer="$12.3"
-            />
-            <Card
-              title="Unlocked"
-              value={formatTokenAmount(
-                claimData.amountUnlocked,
-                mintInfo?.decimals ?? 9
-              )}
-              footer="$1.1561"
-            />
-            <Card
-              title="Claimed"
-              value={formatTokenAmount(
-                claimData.lockedAmountWithdrawn ?? new BN(0), // TODO: add cliff amount to this, find a way to get the cliff amount
-                mintInfo?.decimals ?? 9
-              )}
-              footer="$1.1561"
-            />
-            <Card
-              title="Locked"
-              value={formatTokenAmount(
-                claimData.amountLocked,
-                mintInfo?.decimals ?? 9
-              )}
-              footer="$1.1561"
-            />
-          </div>
+          {claimData ? (
+            <>
+              <div className="flex flex-col gap-4">
+                <h3 className="text-lg font-medium">Your Airdrop Details</h3>
 
-          <>
-            <div className="flex justify-center">
-              <button
-                className="btn btn-md btn-black"
-                onClick={() => claimAirdrop()}
-              >
-                Claim Airdrop
-              </button>
-            </div>
-            {claimData?.canClaim ? (
-              <div className="flex justify-center">
-                <button
-                  className="btn btn-md btn-black"
-                  onClick={() => claimAirdrop()}
-                >
-                  Claim Airdrop
-                </button>
+                <div className="flex flex-col justify-between gap-4 md:flex-row">
+                  <Card
+                    title="Locked"
+                    value={formatTokenAmount(
+                      claimData.totalLocked,
+                      mintInfo?.decimals ?? 9
+                    )}
+                    footer="$1.1561"
+                  />
+                  <Card
+                    title="Unlocked"
+                    value={formatTokenAmount(
+                      claimData.totalUnlocked,
+                      mintInfo?.decimals ?? 9
+                    )}
+                    footer="$1.1561"
+                  />
+                  <Card
+                    title="Claimed"
+                    value={formatTokenAmount(
+                      claimData.totalClaimed,
+                      mintInfo?.decimals ?? 9
+                    )}
+                    footer="$1.1561"
+                  />
+                  <Card
+                    title="Total"
+                    value={formatTokenAmount(
+                      claimData.amountUnlocked.add(claimData.amountLocked),
+                      mintInfo?.decimals ?? 9
+                    )}
+                    footer="$12.3"
+                  />
+                </div>
               </div>
-            ) : claimData?.nextClaimPeriod ? (
-              <>
-                {claimData.nextClaimPeriod ? (
+
+              {claimData.canClaim && (
+                <div className="flex justify-center">
+                  <button
+                    className="btn btn-md btn-black"
+                    onClick={() => claimAirdrop()}
+                  >
+                    Claim
+                  </button>
+                </div>
+              )}
+
+              {claimData.nextClaimPeriod &&
+                new Date(claimData.nextClaimPeriod) > new Date() && (
                   <p className="text-center text-xl font-medium">
                     Claiming is available{" "}
                     {formatDate(claimData.nextClaimPeriod)}, come back later.
                   </p>
-                ) : (
-                  <p className="text-center text-xl font-medium">
-                    Claim period is over.
-                  </p>
                 )}
-              </>
-            ) : (
-              <p className="text-center text-xl font-medium">
-                Not eligible for airdrop
-              </p>
-            )}
-          </>
+            </>
+          ) : (
+            <p className="text-center text-xl font-medium">
+              Not eligible for airdrop
+            </p>
+          )}
         </>
       ) : (
         <p className="text-center text-xl font-medium">
