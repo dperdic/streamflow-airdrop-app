@@ -37,7 +37,6 @@ export default function AirdropDetails() {
   // done
   const fetchDistributor = useCallback(async () => {
     if (!id) return;
-    console.log("called");
 
     const [res] = await distributorClient.getDistributors({ ids: [id] });
 
@@ -179,33 +178,53 @@ export default function AirdropDetails() {
         },
       ]);
 
-      console.log("claim", claim);
-      console.log("distributor", distributor);
-
       // it is null if the user has not claimed yet if the airdrop is instant or vested
       if (claim === null) {
+        // for proof
         claimData.amountUnlocked = new BN(data.amountUnlocked);
         claimData.amountLocked = new BN(data.amountLocked);
-        claimData.totalUnlocked = new BN(data.amountUnlocked);
-        claimData.totalLocked = new BN(data.amountLocked);
+
+        const { locked, unlocked } = getUnlockedAndLockedAmount(
+          new BN(data.amountLocked).add(new BN(data.amountUnlocked)),
+          new BN(data.amountUnlocked),
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod
+        );
+
+        claimData.totalUnlocked = unlocked;
+        claimData.totalLocked = locked;
         claimData.totalClaimed = new BN(0);
         claimData.nextClaimPeriod = new Date(
           distributor.startTs.mul(new BN(1000)).toNumber()
         );
+        const unlockPerPeriod = getAmountUnlockedPerPeriod(
+          new BN(data.amountLocked).add(new BN(data.amountUnlocked)),
+          new BN(data.amountUnlocked),
+          distributor.startTs,
+          distributor.endTs,
+          distributor.unlockPeriod
+        );
+
+        claimData.unlockPerPeriod = unlockPerPeriod;
+
         claimData.canClaim = true;
 
         setClaimData(claimData);
         return;
         // if the user has claimed but the airdrop is instant
       } else if (isCompressedClaimStatus(claim)) {
+        // for proof
         claimData.amountUnlocked = new BN(data.amountUnlocked);
         claimData.amountLocked = new BN(data.amountLocked);
+
         claimData.totalUnlocked = new BN(data.amountUnlocked);
         claimData.totalLocked = new BN(data.amountLocked);
         claimData.totalClaimed = new BN(data.amountUnlocked);
-        claimData.nextClaimPeriod = new Date(
-          distributor.startTs.mul(new BN(1000)).toNumber()
-        );
+        // claimData.nextClaimPeriod = new Date(
+        //   distributor.startTs.mul(new BN(1000)).toNumber()
+        // );
+
         claimData.canClaim = false;
 
         setClaimData(claimData);
@@ -237,15 +256,7 @@ export default function AirdropDetails() {
           distributor.unlockPeriod
         );
 
-        const unlockPerPeriod = getAmountUnlockedPerPeriod(
-          claim.lockedAmount.add(claim.unlockedAmount),
-          claim.unlockedAmount,
-          distributor.startTs,
-          distributor.endTs,
-          distributor.unlockPeriod
-        );
-
-        claimData.unlockPerPeriod = unlockPerPeriod;
+        claimData.unlockPerPeriod = claim.lastAmountPerUnlock;
         claimData.amountUnlocked = claim.unlockedAmount;
         claimData.amountLocked = claim.lockedAmount;
 
@@ -259,13 +270,18 @@ export default function AirdropDetails() {
             : claimData.totalClaimed;
 
         claimData.nextClaimPeriod = nextPeriod;
-        claimData.lastAmountPerUnlock = claim.lastAmountPerUnlock;
         claimData.lockedAmountWithdrawn = claim.lockedAmountWithdrawn;
         claimData.closedTs = claim.closedTs;
+        claimData.claimsCount = claim.claimsCount;
 
         const now = new Date();
 
-        if (nextPeriod && now >= nextPeriod) {
+        if (
+          nextPeriod &&
+          now >= nextPeriod &&
+          (distributor.claimsLimit === 0 ||
+            claimData.claimsCount < distributor.claimsLimit)
+        ) {
           claimData.canClaim = true;
         } else {
           claimData.canClaim = false;
@@ -351,17 +367,6 @@ export default function AirdropDetails() {
         <p className="text-center text-xl font-medium">Loading...</p>
       </div>
     );
-
-  // console.log("claimData", {
-  //   ...claimData,
-  //   amountUnlocked: claimData?.amountUnlocked?.toString(),
-  //   amountLocked: claimData?.amountLocked?.toString(),
-  //   nextClaimPeriod: claimData?.nextClaimPeriod?.toISOString(),
-  //   lastClaimTs: claimData?.lastClaimTs?.toString(),
-  //   lastAmountPerUnlock: claimData?.lastAmountPerUnlock?.toString(),
-  //   lockedAmountWithdrawn: claimData?.lockedAmountWithdrawn?.toString(),
-  //   closedTs: claimData?.closedTs?.toString(),
-  // });
 
   return (
     <div className="flex flex-col gap-8">

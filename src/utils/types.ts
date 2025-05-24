@@ -43,7 +43,6 @@ export type ClaimData = {
   unlockPerPeriod: BN; // calculated based on totalAmount, amountUnlocked, startTs, endTs, unlockPeriod
 
   // blockchain results
-  lastAmountPerUnlock?: BN;
   lockedAmountWithdrawn?: BN;
   closedTs?: BN;
   claimsCount?: number;
