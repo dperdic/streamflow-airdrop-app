@@ -1,4 +1,4 @@
-import { ClaimantData, ClaimData } from "@lib/types";
+import { ClaimantData, ClaimData, JupiterPriceResponse } from "@lib/types";
 import { unpackMint } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { ClaimStatus, MerkleDistributor } from "@streamflow/distributor/solana";
@@ -202,6 +202,26 @@ export async function fetchMintInfo(
     .filter(Boolean);
 
   return mintInfo;
+}
+
+export async function fetchJupiterPrice(tokenMint: PublicKey) {
+  try {
+    const response = await fetch(
+      `https://lite-api.jup.ag/price/v2?ids=${tokenMint.toString()}`
+    );
+
+    const data: JupiterPriceResponse = await response.json();
+
+    return data.data[tokenMint.toString()]?.price;
+  } catch (error) {
+    console.error("Error fetching Jupiter price:", error);
+
+    return {
+      data: {
+        [tokenMint.toString()]: null,
+      },
+    };
+  }
 }
 
 // Helper functions

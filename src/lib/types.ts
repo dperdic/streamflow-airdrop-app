@@ -42,3 +42,14 @@ export type ClaimData = {
   nextClaimPeriod?: Date | null;
   canClaim: boolean;
 };
+
+export type JupiterPriceResponse = {
+  data: {
+    [identifier: string]: {
+      id: string;
+      type: string;
+      price: string;
+    } | null;
+  };
+  timeTaken: number;
+};
