@@ -3611,6 +3611,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@pythnetwork/hermes-client@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@pythnetwork/hermes-client@npm:2.0.0"
+  dependencies:
+    "@zodios/core": "npm:^10.9.6"
+    eventsource: "npm:^3.0.5"
+    zod: "npm:^3.23.8"
+  checksum: 10c0/2bb8b66c5292cd3244edb207ed0ba281293ccdd7966d56c7e6e3a725029cd636cfd4ca261bfda95b9269be990c3d6f88bfc771b9126116159946fdaf726bd22b
+  languageName: node
+  linkType: hard
+
 "@radix-ui/primitive@npm:1.0.0":
   version: 1.0.0
   resolution: "@radix-ui/primitive@npm:1.0.0"
@@ -7530,6 +7541,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@zodios/core@npm:^10.9.6":
+  version: 10.9.6
+  resolution: "@zodios/core@npm:10.9.6"
+  peerDependencies:
+    axios: ^0.x || ^1.0.0
+    zod: ^3.x
+  checksum: 10c0/0a792779fa438ccc214cca09beafb29553737b8208b3819dfe3df7ab50fa01345ec60870bdb8e47e758e2b63d1984052ac502e7a5d50af5f5ef620717dfee780
+  languageName: node
+  linkType: hard
+
 "abbrev@npm:^3.0.0":
   version: 3.0.1
   resolution: "abbrev@npm:3.0.1"
@@ -9737,6 +9758,22 @@ __metadata:
   version: 3.3.0
   resolution: "events@npm:3.3.0"
   checksum: 10c0/d6b6f2adbccbcda74ddbab52ed07db727ef52e31a61ed26db9feb7dc62af7fc8e060defa65e5f8af9449b86b52cc1a1f6a79f2eafcf4e62add2b7a1fa4a432f6
+  languageName: node
+  linkType: hard
+
+"eventsource-parser@npm:^3.0.1":
+  version: 3.0.2
+  resolution: "eventsource-parser@npm:3.0.2"
+  checksum: 10c0/067c6e60b7c68a4577630cc7e11d2aaeef52005e377a213308c7c2350596a175d5a179671d85f570726dce3f451c15d174ece4479ce68a1805686c88950d08dd
+  languageName: node
+  linkType: hard
+
+"eventsource@npm:^3.0.5":
+  version: 3.0.7
+  resolution: "eventsource@npm:3.0.7"
+  dependencies:
+    eventsource-parser: "npm:^3.0.1"
+  checksum: 10c0/c48a73c38f300e33e9f11375d4ee969f25cbb0519608a12378a38068055ae8b55b6e0e8a49c3f91c784068434efe1d9f01eb49b6315b04b0da9157879ce2f67d
   languageName: node
   linkType: hard
 
@@ -14709,6 +14746,7 @@ __metadata:
     "@metaplex-foundation/mpl-token-metadata": "npm:^3.4.0"
     "@metaplex-foundation/umi": "npm:^1.2.0"
     "@metaplex-foundation/umi-bundle-defaults": "npm:^1.2.0"
+    "@pythnetwork/hermes-client": "npm:^2.0.0"
     "@solana/spl-token": "npm:^0.4.13"
     "@solana/wallet-adapter-base": "npm:^0.9.26"
     "@solana/wallet-adapter-react": "npm:^0.15.38"
@@ -15198,6 +15236,13 @@ __metadata:
   version: 3.22.4
   resolution: "zod@npm:3.22.4"
   checksum: 10c0/7578ab283dac0eee66a0ad0fc4a7f28c43e6745aadb3a529f59a4b851aa10872b3890398b3160f257f4b6817b4ce643debdda4fb21a2c040adda7862cab0a587
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.23.8":
+  version: 3.25.28
+  resolution: "zod@npm:3.25.28"
+  checksum: 10c0/557fb621813d128f8090c43de65f9e8661ce9bd8bd29d7adc6b38b0a79e14729a8926e28a2e6eee2fa0ec0ea390cc549363f50235e8f45d2e4771906d1f87b20
   languageName: node
   linkType: hard
 
