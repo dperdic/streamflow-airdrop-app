@@ -13,9 +13,11 @@ export const useTokenPrice = (
 
       if (tokenSymbol) {
         price = await fetchPythPrice(tokenSymbol);
+
         priceFeed = "pyth" as const;
       } else if (price === null && tokenMint) {
         price = await fetchJupiterPrice(tokenMint);
+
         priceFeed = "jupiter" as const;
       }
 
