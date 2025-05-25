@@ -10,10 +10,16 @@ export function getAirdropType(startTs: BN, endTs: BN): "Instant" | "Vested" {
   return startTs.eq(endTs) ? "Instant" : "Vested";
 }
 
-export function formatTokenAmount(amount: BN, decimals: number): string {
-  const divisor = new BN(10).pow(new BN(decimals));
-  const whole = amount.div(divisor).toString();
-  const fraction = amount.mod(divisor).toString().padStart(decimals, "0");
+export function formatTokenAmount(
+  tokenAmount: BN,
+  tokenDecimals: number
+): string {
+  const divisor = new BN(10).pow(new BN(tokenDecimals));
+  const whole = tokenAmount.div(divisor).toString();
+  const fraction = tokenAmount
+    .mod(divisor)
+    .toString()
+    .padStart(tokenDecimals, "0");
 
   // Trim trailing zeroes from the fractional part
   const trimmedFraction = fraction.replace(/0+$/, "");
@@ -21,18 +27,40 @@ export function formatTokenAmount(amount: BN, decimals: number): string {
   return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
 }
 
-export function calculatePrice(
+export function convertToUSD(
   tokenAmount: BN,
   tokenDecimals: number,
-  price: BN,
-  priceDecimals: number
-): BN {
-  const tokenAmountWithDecimals = tokenAmount.mul(
-    new BN(10).pow(new BN(tokenDecimals))
-  );
-  const priceWithDecimals = price.mul(new BN(10).pow(new BN(priceDecimals)));
+  tokenToUsdRate: string
+): string {
+  try {
+    const divisor = new BN(10).pow(new BN(tokenDecimals));
+    const whole = tokenAmount.div(divisor).toString();
+    const fraction = tokenAmount
+      .mod(divisor)
+      .toString()
+      .padStart(tokenDecimals, "0");
 
-  return tokenAmountWithDecimals.div(priceWithDecimals);
+    // Create decimal representation as string
+    const tokenAmountStr = `${whole}.${fraction}`;
+
+    // Convert to number for calculation
+    const tokenAmountFloat = parseFloat(tokenAmountStr);
+    const rate = parseFloat(tokenToUsdRate);
+
+    // Handle invalid inputs
+    if (isNaN(tokenAmountFloat) || isNaN(rate)) {
+      return "$0.00";
+    }
+
+    // Calculate USD value
+    const usdValue = tokenAmountFloat * rate;
+
+    // Format to 2 decimal places with $ prefix
+    return `$${usdValue.toFixed(2)}`;
+  } catch (error) {
+    console.error("Error calculating token dollar price:", error);
+    return "$0.00";
+  }
 }
 
 export function maskPublicKey(publicKey: string): string {
