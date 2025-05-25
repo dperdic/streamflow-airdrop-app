@@ -8,25 +8,20 @@ export const useTokenPrice = (
   return useQuery({
     queryKey: ["tokenPrice", tokenSymbol, tokenMint],
     queryFn: async () => {
+      let priceFeed: "pyth" | "jupiter" | null = null;
+      let price = null;
+
       if (tokenSymbol) {
-        const price = await fetchPythPrice(tokenSymbol);
-
-        return {
-          priceFeed: "pyth" as const,
-          price,
-        };
-      } else if (tokenMint) {
-        const price = await fetchJupiterPrice(tokenMint);
-
-        return {
-          priceFeed: "jupiter" as const,
-          price,
-        };
+        price = await fetchPythPrice(tokenSymbol);
+        priceFeed = "pyth" as const;
+      } else if (price === null && tokenMint) {
+        price = await fetchJupiterPrice(tokenMint);
+        priceFeed = "jupiter" as const;
       }
 
       return {
-        priceFeed: null,
-        price: null,
+        priceFeed,
+        price,
       };
     },
     enabled: !!(tokenSymbol || tokenMint),
