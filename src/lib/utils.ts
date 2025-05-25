@@ -304,7 +304,7 @@ export async function fetchPythPrice(tokenSymbol: string) {
   return formattedPrice;
 }
 
-// Helper functions
+// Internal helper functions
 // ----------------------------
 
 function isClaimingAvailable(
