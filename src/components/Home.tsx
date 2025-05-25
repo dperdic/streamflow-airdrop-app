@@ -122,8 +122,8 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <div>Loading airdrops...</div>
+      <div>
+        <p className="text-center text-xl font-medium">Loading airdrops...</p>
       </div>
     );
   }
