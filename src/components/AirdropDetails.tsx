@@ -5,6 +5,7 @@ import {
   buildClaimDataForCompressedClaim,
   buildClaimDataForNoClaim,
   buildClaimDataForVestedClaim,
+  convertToUSD,
   fetchClaimantDataFromAPI,
   fetchJupiterPrice,
   fetchPythPrice,
@@ -36,7 +37,7 @@ export default function AirdropDetails() {
     null
   );
   const [airdropType, setAirdropType] = useState<string | null>(null);
-  const [mintInfo, setMintInfo] = useState<TokenInfo | null>(null);
+  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [claimData, setClaimData] = useState<ClaimData | null>(null);
   const [priceData, setPriceData] = useState<{
     priceFeed: "pyth" | "jupiter" | null;
@@ -95,14 +96,14 @@ export default function AirdropDetails() {
     }
   }, [id, publicKey, distributor, airdropType]);
 
-  const fetchMintInfo = useCallback(async () => {
+  const fetchTokenInfo = useCallback(async () => {
     if (!connection || !distributor) return;
 
     // try to fetch metadata first
     try {
       const asset = await fetchDigitalAsset(umi, distributor.mint as any);
 
-      setMintInfo({
+      setTokenInfo({
         mint: asset.mint.publicKey.toString(),
         name: asset.metadata.name,
         symbol: asset.metadata.symbol,
@@ -114,7 +115,7 @@ export default function AirdropDetails() {
       const mintInfo = getMintInfo(distributor.mint.toString());
 
       if (mintInfo) {
-        setMintInfo({
+        setTokenInfo({
           mint: mintInfo.publicKey.toString(),
           decimals: mintInfo.decimals,
         });
@@ -126,7 +127,7 @@ export default function AirdropDetails() {
       if (mintAccountInfo) {
         const data = unpackMint(distributor.mint, mintAccountInfo);
 
-        setMintInfo({
+        setTokenInfo({
           mint: data.address.toString(),
           decimals: data.decimals,
         });
@@ -135,21 +136,21 @@ export default function AirdropDetails() {
   }, [connection, distributor, getMintInfo]);
 
   const fetchPrice = useCallback(async () => {
-    if (!mintInfo) return;
+    if (!tokenInfo) return;
 
     let priceData: {
       priceFeed: "pyth" | "jupiter" | null;
       price: string | null;
     } | null = null;
 
-    if (mintInfo.symbol) {
-      const price = await fetchPythPrice(mintInfo.symbol);
+    if (tokenInfo.symbol) {
+      const price = await fetchPythPrice(tokenInfo.symbol);
       priceData = {
         priceFeed: "pyth",
         price: price,
       };
     } else {
-      const price = await fetchJupiterPrice(mintInfo.mint);
+      const price = await fetchJupiterPrice(tokenInfo.mint);
       priceData = {
         priceFeed: "jupiter",
         price: price,
@@ -159,7 +160,7 @@ export default function AirdropDetails() {
     console.log(priceData);
 
     setPriceData(priceData);
-  }, [mintInfo]);
+  }, [tokenInfo]);
 
   const claimAirdrop = async () => {
     if (!wallet || !publicKey || !id || !claimData) return;
@@ -195,9 +196,9 @@ export default function AirdropDetails() {
   }, [fetchPrice]);
 
   useEffect(() => {
-    fetchMintInfo();
+    fetchTokenInfo();
     fetchClaimData();
-  }, [fetchMintInfo, fetchClaimData]);
+  }, [fetchTokenInfo, fetchClaimData]);
 
   if (!distributor)
     return (
@@ -211,10 +212,12 @@ export default function AirdropDetails() {
       <div>
         <h1 className="text-2xl font-bold">Airdrop Details</h1>
         <h2 className="text-lg break-all">Distributor: {id}</h2>
-        <h2 className="text-lg break-all">Mint: {mintInfo?.mint.toString()}</h2>
-        {mintInfo?.name && mintInfo?.symbol && (
+        <h2 className="text-lg break-all">
+          Mint: {tokenInfo?.mint.toString()}
+        </h2>
+        {tokenInfo?.name && tokenInfo?.symbol && (
           <h2 className="text-lg break-all">
-            Token: {mintInfo?.name} ({mintInfo?.symbol})
+            Token: {tokenInfo?.name} ({tokenInfo?.symbol})
           </h2>
         )}
       </div>
@@ -236,10 +239,10 @@ export default function AirdropDetails() {
             title="Amount claimed/Total"
             value={`${formatTokenAmount(
               distributor.totalAmountClaimed,
-              mintInfo?.decimals ?? 9
+              tokenInfo?.decimals ?? 9
             )} / ${formatTokenAmount(
               distributor.maxTotalClaim,
-              mintInfo?.decimals ?? 9
+              tokenInfo?.decimals ?? 9
             )}`}
           />
         </div>
@@ -257,33 +260,49 @@ export default function AirdropDetails() {
                     title="Locked"
                     value={formatTokenAmount(
                       claimData.totalLocked,
-                      mintInfo?.decimals ?? 9
+                      tokenInfo?.decimals ?? 9
                     )}
-                    footer="$1.1561"
+                    footer={convertToUSD(
+                      claimData.totalLocked,
+                      tokenInfo?.decimals ?? 9,
+                      priceData?.price ?? "0"
+                    )}
                   />
                   <Card
                     title="Unlocked"
                     value={formatTokenAmount(
                       claimData.totalUnlocked,
-                      mintInfo?.decimals ?? 9
+                      tokenInfo?.decimals ?? 9
                     )}
-                    footer="$1.1561"
+                    footer={convertToUSD(
+                      claimData.totalUnlocked,
+                      tokenInfo?.decimals ?? 9,
+                      priceData?.price ?? "0"
+                    )}
                   />
                   <Card
                     title="Claimed"
                     value={formatTokenAmount(
                       claimData.totalClaimed,
-                      mintInfo?.decimals ?? 9
+                      tokenInfo?.decimals ?? 9
                     )}
-                    footer="$1.1561"
+                    footer={convertToUSD(
+                      claimData.totalClaimed,
+                      tokenInfo?.decimals ?? 9,
+                      priceData?.price ?? "0"
+                    )}
                   />
                   <Card
                     title="Total"
                     value={formatTokenAmount(
                       claimData.amountUnlocked.add(claimData.amountLocked),
-                      mintInfo?.decimals ?? 9
+                      tokenInfo?.decimals ?? 9
                     )}
-                    footer="$12.3"
+                    footer={convertToUSD(
+                      claimData.amountUnlocked.add(claimData.amountLocked),
+                      tokenInfo?.decimals ?? 9,
+                      priceData?.price ?? "0"
+                    )}
                   />
                 </div>
 
@@ -293,9 +312,13 @@ export default function AirdropDetails() {
                       title="Unlocked per period"
                       value={formatTokenAmount(
                         claimData.unlockPerPeriod,
-                        mintInfo?.decimals ?? 9
+                        tokenInfo?.decimals ?? 9
                       )}
-                      footer="$12.3"
+                      footer={convertToUSD(
+                        claimData.unlockPerPeriod,
+                        tokenInfo?.decimals ?? 9,
+                        priceData?.price ?? "0"
+                      )}
                     />
                     <Card
                       title="Claims limit"
