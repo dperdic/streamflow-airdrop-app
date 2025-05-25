@@ -1,6 +1,6 @@
 import { Airdrop } from "@lib/types";
 import { formatTokenAmount, getAirdropType } from "@lib/utils";
-import useDistributors from "@queries/useDistributors";
+import { useDistributors } from "@queries/useDistributors";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useMintStore } from "@store/mintStore";
@@ -29,7 +29,9 @@ export default function Home() {
 
   // Filter and sort
   const filteredData = useMemo(() => {
-    if (!distributors) return [];
+    if (!distributors) {
+      return [];
+    }
 
     return distributors
       .filter(d =>
