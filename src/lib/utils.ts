@@ -1,3 +1,4 @@
+import { hermesClient } from "@lib/constants";
 import { ClaimantData, ClaimData, JupiterPriceResponse } from "@lib/types";
 import { unpackMint } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -222,6 +223,31 @@ export async function fetchJupiterPrice(tokenMint: PublicKey) {
       },
     };
   }
+}
+
+export async function fetchPythPrice(tokenSymbol: string) {
+  const query = `Crypto.${tokenSymbol}/USD`;
+
+  const pricefeeds = await hermesClient.getPriceFeeds({
+    assetType: "crypto",
+    query,
+  });
+
+  const priceFeed = pricefeeds.find(item => item.attributes.symbol === query);
+
+  if (!priceFeed) {
+    return null;
+  }
+
+  const price = await hermesClient.getLatestPriceUpdates([priceFeed.id], {
+    parsed: true,
+    ignoreInvalidPriceIds: true,
+  });
+
+  return {
+    priceFeed,
+    price,
+  };
 }
 
 // Helper functions
