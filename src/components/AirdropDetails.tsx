@@ -1,211 +1,63 @@
 import { Card } from "@components/ui/Card";
-import { distributorClient, umi } from "@lib/constants";
-import { ClaimData, TokenInfo } from "@lib/types";
 import {
-  buildClaimDataForCompressedClaim,
-  buildClaimDataForNoClaim,
-  buildClaimDataForVestedClaim,
   convertToUSD,
-  fetchClaimantDataFromAPI,
-  fetchJupiterPrice,
-  fetchPythPrice,
   formatDate,
   formatTokenAmount,
   getAirdropType,
 } from "@lib/utils";
-import { fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
-import { unpackMint } from "@solana/spl-token";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { SendTransactionError } from "@solana/web3.js";
-import { useMintStore } from "@store/mintStore";
-import {
-  isCompressedClaimStatus,
-  MerkleDistributor,
-} from "@streamflow/distributor/solana";
-import BN from "bn.js";
-import { useCallback, useEffect, useState } from "react";
+import { useClaimAirdrop } from "@queries/useClaimAirdrop";
+import { useClaimData } from "@queries/useClaimData";
+import { useDistributor } from "@queries/useDistributor";
+import { useTokenInfo } from "@queries/useTokenInfo";
+import { useTokenPrice } from "@queries/useTokenPrice";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useParams } from "react-router-dom";
-import { toast } from "react-toastify";
 
 export default function AirdropDetails() {
   const { id } = useParams<{ id: string }>();
-  const { publicKey, wallet } = useWallet();
-  const { connection } = useConnection();
-  const { getMintInfo } = useMintStore();
+  const { publicKey } = useWallet();
 
-  const [distributor, setDistributor] = useState<MerkleDistributor | null>(
-    null
+  const { data: distributor, isLoading: distributorLoading } =
+    useDistributor(id);
+  const { data: tokenInfo, isLoading: tokenInfoLoading } = useTokenInfo(
+    distributor?.mint
   );
-  const [airdropType, setAirdropType] = useState<string | null>(null);
-  const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
-  const [claimData, setClaimData] = useState<ClaimData | null>(null);
-  const [priceData, setPriceData] = useState<{
-    priceFeed: "pyth" | "jupiter" | null;
-    price: string | null;
-  } | null>(null);
+  const { data: claimData, isLoading: claimDataLoading } = useClaimData(
+    id,
+    publicKey,
+    distributor
+  );
+  const { data: priceData } = useTokenPrice(tokenInfo?.symbol, tokenInfo?.mint);
 
-  const fetchDistributor = useCallback(async () => {
-    if (!id) return;
+  const claimMutation = useClaimAirdrop(id);
 
-    const [res] = await distributorClient.getDistributors({ ids: [id] });
+  const airdropType = distributor
+    ? getAirdropType(distributor.startTs, distributor.endTs)
+    : null;
 
-    if (res) {
-      setDistributor(res);
-      setAirdropType(getAirdropType(res.startTs, res.endTs));
-    }
-  }, [id]);
+  const isLoading = distributorLoading || tokenInfoLoading || claimDataLoading;
 
-  const fetchClaimData = useCallback(async () => {
-    if (!id || !publicKey || !distributor || !airdropType) return;
-
-    try {
-      // Fetch claimant data from API
-      const data = await fetchClaimantDataFromAPI(id, publicKey.toString());
-
-      if (!data) {
-        setClaimData(null);
-        return;
-      }
-
-      // Get existing claim from blockchain
-      const [claim] = await distributorClient.getClaims([
-        {
-          id,
-          recipient: publicKey.toString(),
-        },
-      ]);
-
-      let claimData: ClaimData;
-
-      if (!claim) {
-        // No claim PDA yet - calculate unlocked/locked amounts
-        claimData = buildClaimDataForNoClaim(data, distributor, airdropType);
-      } else if (isCompressedClaimStatus(claim)) {
-        // Claim already made, PDA compressed or closed
-        claimData = buildClaimDataForCompressedClaim(data);
-      } else {
-        // Vested claim, PDA exists
-        claimData = buildClaimDataForVestedClaim(data, claim, distributor);
-      }
-
-      setClaimData(claimData);
-    } catch (error) {
-      console.error(error);
-      toast.error("An error occurred while fetching claim data");
-      setClaimData(null);
-    }
-  }, [id, publicKey, distributor, airdropType]);
-
-  const fetchTokenInfo = useCallback(async () => {
-    if (!connection || !distributor) return;
-
-    // try to fetch metadata first
-    try {
-      const asset = await fetchDigitalAsset(umi, distributor.mint as any);
-
-      setTokenInfo({
-        mint: asset.mint.publicKey.toString(),
-        name: asset.metadata.name,
-        symbol: asset.metadata.symbol,
-        decimals: asset.mint.decimals,
-      });
-    } catch (_error) {
-      // no metadata, can't fetch token name and symbol can get mint and decimals
-      // check mint store for mint info first
-      const mintInfo = getMintInfo(distributor.mint.toString());
-
-      if (mintInfo) {
-        setTokenInfo({
-          mint: mintInfo.publicKey.toString(),
-          decimals: mintInfo.decimals,
-        });
-        return;
-      }
-
-      const mintAccountInfo = await connection.getAccountInfo(distributor.mint);
-
-      if (mintAccountInfo) {
-        const data = unpackMint(distributor.mint, mintAccountInfo);
-
-        setTokenInfo({
-          mint: data.address.toString(),
-          decimals: data.decimals,
-        });
-      }
-    }
-  }, [connection, distributor, getMintInfo]);
-
-  const fetchPrice = useCallback(async () => {
-    if (!tokenInfo) return;
-
-    let priceData: {
-      priceFeed: "pyth" | "jupiter" | null;
-      price: string | null;
-    } | null = null;
-
-    if (tokenInfo.symbol) {
-      const price = await fetchPythPrice(tokenInfo.symbol);
-      priceData = {
-        priceFeed: "pyth",
-        price: price,
-      };
-    } else {
-      const price = await fetchJupiterPrice(tokenInfo.mint);
-      priceData = {
-        priceFeed: "jupiter",
-        price: price,
-      };
-    }
-
-    console.log(priceData);
-
-    setPriceData(priceData);
-  }, [tokenInfo]);
-
-  const claimAirdrop = async () => {
-    if (!wallet || !publicKey || !id || !claimData) return;
-
-    try {
-      const data = {
-        id,
-        proof: claimData.proof,
-        amountUnlocked: new BN(claimData.amountUnlocked),
-        amountLocked: new BN(claimData.amountLocked),
-      };
-
-      const claimRes = await distributorClient.claim(data, {
-        invoker: wallet.adapter as any,
-      });
-
-      toast.success(`Airdrop claimed successfully: ${claimRes.txId}`);
-    } catch (error) {
-      console.error((error as SendTransactionError).message);
-      toast.error("Airdrop claim failed");
-    } finally {
-      fetchDistributor();
-      fetchClaimData();
+  const handleClaim = () => {
+    if (claimData) {
+      claimMutation.mutate(claimData);
     }
   };
 
-  useEffect(() => {
-    fetchDistributor();
-  }, [fetchDistributor]);
-
-  useEffect(() => {
-    fetchPrice();
-  }, [fetchPrice]);
-
-  useEffect(() => {
-    fetchTokenInfo();
-    fetchClaimData();
-  }, [fetchTokenInfo, fetchClaimData]);
-
-  if (!distributor)
+  if (isLoading) {
     return (
       <div>
         <p className="text-center text-xl font-medium">Loading...</p>
       </div>
     );
+  }
+
+  if (!distributor) {
+    return (
+      <div>
+        <p className="text-center text-xl font-medium">Distributor not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -226,10 +78,7 @@ export default function AirdropDetails() {
         <h3 className="text-lg font-medium">Global Airdrop Details</h3>
 
         <div className="flex flex-col justify-between gap-4 md:flex-row">
-          <Card
-            title="Airdrop type"
-            value={getAirdropType(distributor.startTs, distributor.endTs)}
-          />
+          <Card title="Airdrop type" value={airdropType ?? ""} />
           <Card title="Recipients" value={distributor.maxNumNodes.toString()} />
           <Card
             title="Recipients Claimed/Total"
@@ -336,9 +185,10 @@ export default function AirdropDetails() {
                 <div className="flex justify-center">
                   <button
                     className="btn btn-md btn-black"
-                    onClick={() => claimAirdrop()}
+                    onClick={() => handleClaim()}
+                    disabled={claimMutation.isPending}
                   >
-                    Claim
+                    {claimMutation.isPending ? "Claiming..." : "Claim"}
                   </button>
                 </div>
               )}
