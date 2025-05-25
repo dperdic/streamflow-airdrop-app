@@ -87,16 +87,22 @@ export async function fetchClaimantDataFromAPI(
   id: string,
   publicKey: string
 ): Promise<ClaimantData | null> {
-  const response = await fetch(
-    `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey}`
-  );
+  try {
+    const response = await fetch(
+      `https://staging-api-public.streamflow.finance/v2/api/airdrops/${id}/claimants/${publicKey}`
+    );
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return null;
+    }
+
+    const data: ClaimantData = await response.json();
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching claimant data from API: ", error);
     return null;
   }
-
-  const data: ClaimantData = await response.json();
-  return data || null;
 }
 
 // Helper function to create base claim data structure
