@@ -6,6 +6,8 @@ import {
   buildClaimDataForNoClaim,
   buildClaimDataForVestedClaim,
   fetchClaimantDataFromAPI,
+  fetchJupiterPrice,
+  fetchPythPrice,
   formatDate,
   formatTokenAmount,
   getAirdropType,
@@ -36,6 +38,10 @@ export default function AirdropDetails() {
   const [airdropType, setAirdropType] = useState<string | null>(null);
   const [mintInfo, setMintInfo] = useState<TokenInfo | null>(null);
   const [claimData, setClaimData] = useState<ClaimData | null>(null);
+  const [priceData, setPriceData] = useState<{
+    priceFeed: "pyth" | "jupiter" | null;
+    price: string | null;
+  } | null>(null);
 
   const fetchDistributor = useCallback(async () => {
     if (!id) return;
@@ -128,6 +134,33 @@ export default function AirdropDetails() {
     }
   }, [connection, distributor, getMintInfo]);
 
+  const fetchPrice = useCallback(async () => {
+    if (!mintInfo) return;
+
+    let priceData: {
+      priceFeed: "pyth" | "jupiter" | null;
+      price: string | null;
+    } | null = null;
+
+    if (mintInfo.symbol) {
+      const price = await fetchPythPrice(mintInfo.symbol);
+      priceData = {
+        priceFeed: "pyth",
+        price: price,
+      };
+    } else {
+      const price = await fetchJupiterPrice(mintInfo.mint);
+      priceData = {
+        priceFeed: "jupiter",
+        price: price,
+      };
+    }
+
+    console.log(priceData);
+
+    setPriceData(priceData);
+  }, [mintInfo]);
+
   const claimAirdrop = async () => {
     if (!wallet || !publicKey || !id || !claimData) return;
 
@@ -156,6 +189,10 @@ export default function AirdropDetails() {
   useEffect(() => {
     fetchDistributor();
   }, [fetchDistributor]);
+
+  useEffect(() => {
+    fetchPrice();
+  }, [fetchPrice]);
 
   useEffect(() => {
     fetchMintInfo();

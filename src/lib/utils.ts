@@ -21,6 +21,20 @@ export function formatTokenAmount(amount: BN, decimals: number): string {
   return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
 }
 
+export function calculatePrice(
+  tokenAmount: BN,
+  tokenDecimals: number,
+  price: BN,
+  priceDecimals: number
+): BN {
+  const tokenAmountWithDecimals = tokenAmount.mul(
+    new BN(10).pow(new BN(tokenDecimals))
+  );
+  const priceWithDecimals = price.mul(new BN(10).pow(new BN(priceDecimals)));
+
+  return tokenAmountWithDecimals.div(priceWithDecimals);
+}
+
 export function maskPublicKey(publicKey: string): string {
   return publicKey.slice(0, 5) + "..." + publicKey.slice(-5);
 }
@@ -205,23 +219,18 @@ export async function fetchMintInfo(
   return mintInfo;
 }
 
-export async function fetchJupiterPrice(tokenMint: PublicKey) {
+export async function fetchJupiterPrice(tokenMint: string) {
   try {
     const response = await fetch(
-      `https://lite-api.jup.ag/price/v2?ids=${tokenMint.toString()}`
+      `https://lite-api.jup.ag/price/v2?ids=${tokenMint}`
     );
 
     const data: JupiterPriceResponse = await response.json();
 
-    return data.data[tokenMint.toString()]?.price;
+    return data.data[tokenMint.toString()]?.price || null;
   } catch (error) {
     console.error("Error fetching Jupiter price:", error);
-
-    return {
-      data: {
-        [tokenMint.toString()]: null,
-      },
-    };
+    return null;
   }
 }
 
@@ -239,15 +248,32 @@ export async function fetchPythPrice(tokenSymbol: string) {
     return null;
   }
 
-  const price = await hermesClient.getLatestPriceUpdates([priceFeed.id], {
-    parsed: true,
-    ignoreInvalidPriceIds: true,
-  });
+  const priceUpdates = await hermesClient.getLatestPriceUpdates(
+    [priceFeed.id],
+    {
+      parsed: true,
+      ignoreInvalidPriceIds: true,
+    }
+  );
 
-  return {
-    priceFeed,
-    price,
-  };
+  const parsedPriceUpdate = priceUpdates.parsed?.find(
+    item => item.id === priceFeed.id
+  );
+
+  if (!parsedPriceUpdate) {
+    return null;
+  }
+
+  const divisor = new BN(10).pow(new BN(parsedPriceUpdate.price.expo));
+  const whole = new BN(parsedPriceUpdate.price.price).div(divisor).toString();
+  const fraction = new BN(parsedPriceUpdate.price.price)
+    .mod(divisor)
+    .toString()
+    .padStart(parsedPriceUpdate.price.expo, "0");
+
+  const formattedPrice = `${whole}.${fraction}`;
+
+  return formattedPrice;
 }
 
 // Helper functions
