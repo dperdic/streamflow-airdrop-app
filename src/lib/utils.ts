@@ -319,10 +319,17 @@ function isClaimingAvailable(
   claimsLimit: number,
   isClawedBack: boolean
 ): boolean {
-  if (isClawedBack) return false;
-  if (nextClaimPeriod && new Date() < nextClaimPeriod) return false;
-  if (claimsLimit > 0 && claimsCount >= claimsLimit) return false;
+  if (isClawedBack) {
+    return false;
+  }
 
+  if (nextClaimPeriod && new Date() < nextClaimPeriod) {
+    return false;
+  }
+
+  if (claimsLimit > 0 && claimsCount >= claimsLimit) {
+    return false;
+  }
   return true;
 }
 
@@ -345,8 +352,14 @@ function isVestingPeriodActive(
   startTime: BN,
   endTime: BN
 ): "before" | "active" | "after" {
-  if (currentTime.lt(startTime)) return "before";
-  if (currentTime.gte(endTime)) return "after";
+  if (currentTime.lt(startTime)) {
+    return "before";
+  }
+
+  if (currentTime.gte(endTime)) {
+    return "after";
+  }
+
   return "active";
 }
 
