@@ -1,4 +1,10 @@
-# Vite Template
+# Streamflow airdrop app
+
+## Description
+
+This React app displays all airdrops available in Streamflow's staging environment. Users can search for airdrops by Airdrop ID (distributor public key), view details for each one, and, if eligible, check their token allocation and claim tokens.
+
+The app queries token prices in USD using the Pyth Network, with Jupiter Aggregator as a fallback.
 
 ## Prerequisites
 
