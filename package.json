@@ -28,7 +28,6 @@
     "@solana/web3.js": "1",
     "@streamflow/common": "^8.1.0",
     "@streamflow/distributor": "^8.1.0",
-    "@streamflow/stream": "^8.1.0",
     "@tanstack/react-query": "^5.76.1",
     "@tanstack/react-table": "^8.21.3",
     "bn.js": "^5.2.2",
